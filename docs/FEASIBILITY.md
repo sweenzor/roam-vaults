@@ -295,6 +295,13 @@ counterpart plus that page's linked-reference count.
 In the prototype, real titles, case variants, aliases, unresolved targets, daily notes and namespaces
 matched 100%; 100 random titles matched 0%.
 
+`spike/src/core/ranker.ts` turns these tiers into a score in [0, 1] with strong (≥ 0.85), medium
+(≥ 0.60) and weak bands, keeps every rule that fired as evidence, and flags near-ties as ambiguous.
+It adds diacritic/quote/dash folding, emoji and ID-prefix stripping, Logseq `___` namespaces,
+OKF `title:` frontmatter, and fuzzy suggestions (typos, word order) guarded against changed
+digits, changed word count and whole-word substitutions. The scoring table is at the top of
+that file.
+
 **Ambiguity is real.** The Obsidian help repo has 331 duplicate basenames and the community hub 33;
 the hub also has 17 case-only collisions (`Avatar.md` the theme vs `avatar.md` the person).
 Index the whole multi-language help repo as one vault and naive tie-breaking sent **10,933 links

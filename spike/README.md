@@ -11,7 +11,7 @@ here as a measured reference for the real implementation.
 
 | Path | What |
 |---|---|
-| `src/core/` | Browser-safe core with no Node APIs: `parser.ts` (masks code, comments and math, then extracts wikilinks, markdown links, embeds, tags, block ids and frontmatter), `frontmatter.ts` (a "YAML-lite" parser), `vault-index.ts` (incremental resolver approximating Obsidian, plus backlinks and unresolved-link maps), `matcher.ts` (Roam title → vault matches in confidence tiers), `dates.ts` (Roam daily title ↔ moment-style formats) |
+| `src/core/` | Browser-safe core with no Node APIs: `parser.ts` (masks code, comments and math, then extracts wikilinks, markdown links, embeds, tags, block ids and frontmatter), `frontmatter.ts` (a "YAML-lite" parser), `vault-index.ts` (incremental resolver approximating Obsidian, plus backlinks and unresolved-link maps), `matcher.ts` (Roam title → vault matches in confidence tiers), `ranker.ts` (the same question answered with a 0–1 score, a strong/medium/weak band, the evidence and an ambiguity flag; adds diacritic/emoji/prefix folding and guarded fuzzy suggestions), `dates.ts` (Roam daily title ↔ moment-style formats) |
 | `src/harness/` | Node-only tools: directory walker, benchmark, synthetic vault generator, edge-case census, YAML differential test, headless-Chrome benchmark |
 | `src/test/` | Unit tests for tricky syntax |
 | `browser/` | Page and worker used by the headless-Chrome benchmark (reads files through `FileSystemHandle`) |
@@ -20,10 +20,11 @@ here as a measured reference for the real implementation.
 
 ```bash
 npm install                                   # only devDependency is `yaml`, used by the differential test
-node --test src/test/parser.test.ts
+node --test src/test/*.test.ts
 node src/harness/gen-synthetic.ts data/synthetic 20000
 node --expose-gc src/harness/bench.ts data/synthetic --name synthetic --truth data/synthetic-truth.json
 node src/harness/demo.ts <vaultDir> "Some Roam Title" "Another Title"
+node --expose-gc src/harness/rank-check.ts <vaultDir> [--show=all]   # ranked matcher: bands per title category, latency
 ```
 
 Test vaults used in the report (clone them into `data/`, which git ignores):
