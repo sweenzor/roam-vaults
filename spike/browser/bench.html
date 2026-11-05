@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vault index browser bench</title>
+<script type="module">
+import { walkDir, readAll, buildIndex, opfsVault } from './pipeline.js';
+import { synthRoamTitles } from '../build/harness/roam-titles.js';
+
+const call = (w, msg) => new Promise((res) => { w.onmessage = (e) => res(e.data); w.postMessage(msg); });
+const heapMB = () => { window.gc?.(); window.gc?.(); return performance.memory ? performance.memory.usedJSHeapSize / 1048576 : NaN; };
+
+window.seed = async (name, url) => {
+  const w = new Worker('./worker.js', { type: 'module' });
+  const r = await call(w, { cmd: 'seed', name, url });
+  w.terminate();
+  return r;
+};
+
+window.bench = async (name) => {
+  const out = { name };
+  const dir = await opfsVault(name);
+  const h0 = heapMB();
+  let t = performance.now();
+  const w = await walkDir(dir);
+  out.walkMs = performance.now() - t;
+  out.files = w.md.length;
+  t = performance.now(); await readAll(w.md, 1); out.readSeqMs = performance.now() - t;
+  t = performance.now(); await readAll(w.md, 8); out.readConc8Ms = performance.now() - t;
+  t = performance.now(); let texts = await readAll(w.md, 32); out.readConc32Ms = performance.now() - t;
+  const b = buildIndex(w.md, texts, w.other);
+  Object.assign(out, { parseMs: b.parseMs, indexMs: b.indexMs, matcherMs: b.matcherMs });
+  texts = null; w.md.forEach((f) => (f.h = null));
+  out.heapRetainedMB = heapMB() - h0;
+  const titles = synthRoamTitles(b.idx);
+  const lat = [];
+  for (let rep = 0; rep < 3; rep++) for (const { title } of titles) { const t0 = performance.now(); b.matcher.associations(title); if (rep === 2) lat.push(performance.now() - t0); }
+  lat.sort((a, c) => a - c);
+  { const t0 = performance.now(); for (let rep = 0; rep < 20; rep++) for (const { title } of titles) b.matcher.associations(title); out.queryUsMeanBatched = (performance.now() - t0) * 1000 / (20 * titles.length); }
+  out.queryUsP50 = lat[lat.length >> 1] * 1000; out.queryUsP99 = lat[Math.floor(lat.length * 0.99)] * 1000;
+  // longest main-thread task if done in one go (what a user would feel without a worker)
+  out.mainThreadBlockMs = out.parseMs + out.indexMs + out.matcherMs;
+
+  // same pipeline in a module worker + query roundtrip
+  const wk = new Worker('./worker.js', { type: 'module' });
+  out.worker = await call(wk, { cmd: 'index', name });
+  const rt = [];
+  for (let k = 0; k < 200; k++) { const t0 = performance.now(); await call(wk, { cmd: 'query', id: k, title: titles[k % titles.length].title }); rt.push(performance.now() - t0); }
+  rt.sort((a, c) => a - c);
+  out.workerQueryRoundtripUsP50 = rt[100] * 1000; out.workerQueryRoundtripUsP99 = rt[198] * 1000;
+  wk.terminate();
+  for (const k of Object.keys(out)) if (typeof out[k] === 'number') out[k] = Math.round(out[k] * 10) / 10;
+  return out;
+};
+window.nameTest = async () => {
+  const root = await navigator.storage.getDirectory();
+  const d = await root.getDirectoryHandle('nametest-' + Date.now(), { create: true });
+  const names = ['plain.md', '🗂️ hub.md', '🗂 hub (no VS16).md', 'a‽b.md', 'café.md'.normalize('NFD'), 'café.md', 'Avatar.md', 'avatar.md', 'What is X?.md', 'A: B.md',
+    'a*b.md', 'a<b>.md', 'a|b.md', 'a"b.md', 'trailing dot.', 'trailing space .md', ' leading.md', 'con.md', 'emoji 😀.md', 'zwj 👩‍💻.md', 'rtl \u202e.md', 'x\u200by.md', 'nbsp\u00a0x.md', '東京.md'];
+  const res = {};
+  for (const n of names) {
+    try { const fh = await d.getFileHandle(n, { create: true }); const w = await fh.createWritable(); await w.write('x'); await w.close(); res[n] = 'ok'; }
+    catch (e) { res[n] = e.name + ': ' + e.message.slice(0, 80); }
+  }
+  const listed = []; for await (const [n] of d.entries()) listed.push(n);
+  return { res, listed };
+};
+window.readSplit = async (name) => {
+  const dir = await opfsVault(name);
+  const w = await walkDir(dir);
+  let t = performance.now();
+  const files = [];
+  let i = 0;
+  await Promise.all(Array.from({ length: 32 }, async () => { while (i < w.md.length) { const k = i++; files[k] = await w.md[k].h.getFile(); } }));
+  const getFileMs = performance.now() - t;
+  t = performance.now();
+  i = 0;
+  await Promise.all(Array.from({ length: 32 }, async () => { while (i < files.length) { const k = i++; await files[k].text(); } }));
+  const textMs = performance.now() - t;
+  const mtimes = files.map((f) => f.lastModified + ':' + f.size).length;
+  return { files: w.md.length, getFileMs: Math.round(getFileMs), textMs: Math.round(textMs), mtimes };
+};
+window.ready = true;
+</script>
