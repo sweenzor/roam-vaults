@@ -395,10 +395,6 @@ whole file text alive. Copying and interning link targets cut retained heap from
 | 11 | **Linux `LANG=C`**: Chrome's file APIs failed every non-ASCII filename in our C-locale sandbox | Low | Document it; surface per-file read errors. |
 | 12 | **Young dependencies**: OKF (v0.2) and `remark-obsidian` (July 2026) | Low | Pin versions; the hand-rolled tokenizer is the baseline. |
 
-Side finding for Roam (not our problem): the desktop app's `update-pages` IPC joins graph name and
-uid into a file path without validating them. It is a write path that only an admin-configured
-setting enables, but it may be worth reporting to Roam.
-
 ---
 
 ## 9. Validate first: a one-day in-app spike
