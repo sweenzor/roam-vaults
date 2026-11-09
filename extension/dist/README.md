@@ -26,7 +26,7 @@ Each vault you add gets its own section. Notes are titled by their path in the v
   matches the nested tag `#a/b`.
 
 Click a note title or line to read the whole note in Roam. Links between notes work inside the viewer.
-Hover a note and click **Open in Obsidian** to jump to it there.
+To jump to a note in Obsidian, click **Open in Obsidian** in the viewer.
 
 The section updates by itself. When you edit a note in Obsidian, the change shows up in Roam within about a
 second.

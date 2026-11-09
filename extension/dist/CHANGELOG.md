@@ -10,7 +10,7 @@ First release of Vaults.
   that link here, and notes tagged here.
 - Supports several vaults, with one section per vault. Remove a vault from its section header.
 - Unfold the matching note in place, or open any note in a read-only viewer that follows links.
-- **Open in Obsidian** on hover.
+- **Open in Obsidian** button in the note viewer.
 - Updates live when notes change, and caches parsed notes so later starts are fast.
 - Commands: Add vault folder, Rescan vaults, Remove all vaults.
 - Read-only, with no network requests.
