@@ -57,13 +57,24 @@ await p.evaluate(async () => {
     pull: () => ({ ':node/title': 'Project Alpha' }),
   };
   window.__cmds = [];
+  // Minimal stand-in for the React that Roam provides, enough to mount the settings component.
+  window.__effects = [];
+  window.React = { createElement: (t, props) => ({ t, props }), useRef: () => (window.__settingsRef = { current: null }), useEffect: (fn) => window.__effects.push(fn) };
+  const settings = { panel: { create: (cfg) => { window.__settings = cfg; } } };
   const ext = (await import('/extension.js')).default;
   console.log('imported');
   window.__ext = ext;
-  await ext.onload({ extensionAPI: { ui: { commandPalette: { addCommand: (c) => window.__cmds.push(c), removeCommand() {} } } } });
+  await ext.onload({ extensionAPI: { settings, ui: { commandPalette: { addCommand: (c) => window.__cmds.push(c), removeCommand(c) { window.__cmds = window.__cmds.filter((x) => x.label !== c.label); } } } } });
+  // mount the settings component into a visible box, as Roam's settings page would
+  const box = document.createElement('div'); box.id = 'settings-box'; document.body.append(box);
+  const comp = window.__settings.settings[0].action.component; comp();
+  window.__settingsRef.current = box; window.__effects.forEach((fn) => fn());
   console.log('loaded');
-  await window.__cmds.find((c) => c.label === 'External Vault References: Add vault folder').callback();
 });
+// with no vaults the page shows nothing, and there are no palette commands (so no hotkeys)
+await p.waitForTimeout(300);
+const emptyPanel = await p.evaluate(() => [...document.querySelectorAll('.rv-panel')].every((e) => !e.textContent.trim()));
+await p.evaluate(() => [...document.querySelectorAll('#settings-box button')].find((b) => b.textContent === 'Add vault folder').click());
 
 const text = async () => p.locator('.rv-panel').textContent();
 await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('see [[Project Alpha]]'), null, { timeout: 10000 }).catch(async (e) => { console.log('panel now:', await p.evaluate(() => document.querySelector('.rv-panel')?.outerHTML?.slice(0, 600) ?? document.body.innerHTML.slice(0, 800))); throw e; });
@@ -77,7 +88,12 @@ ok('no Open in Obsidian link on the page itself', !(await p.locator('.rv-panel')
 ok('backlink snippet shown', t1.includes('see [[Project Alpha]] for context'));
 ok('wikilinks keep faint brackets like Roam', (await p.locator('.rv-block .rv-br').count()) > 0 && (await p.locator('.rv-block', { hasText: 'the alpha project' }).locator('.rv-br').count()) === 0);
 ok('daily backlink shown', t1.includes('2026-11-09'));
-ok('commands registered (3 + Remove per vault)', (await p.evaluate(() => window.__cmds.map((c) => c.label))).includes('External Vault References: Remove vault "My Vault"') && (await p.evaluate(() => window.__cmds.length)) === 4);
+ok('no palette commands', (await p.evaluate(() => window.__cmds.length)) === 0);
+ok('nothing on the page before a vault is added', emptyPanel);
+ok('settings offers Rescan once a vault exists', (await p.locator('#settings-box button', { hasText: 'Rescan' }).count()) === 1);
+ok('settings tab registered with a vault list', await p.evaluate(() => window.__settings.tabTitle === 'External Vault References' && window.__settings.settings[0].action.type === 'reactComponent'));
+await p.waitForFunction(() => document.querySelector('#settings-box')?.textContent.includes('notes'), null, { timeout: 5000 }).catch(() => {});
+ok('settings list shows the vault and its note count', /My Vault3 notes/.test(await p.locator('#settings-box').textContent()));
 ok('one panel only', (await p.locator('.rv-panel').count()) === 1);
 ok('panel sits below Linked References', await p.evaluate(() =>
   document.querySelector('.rm-reference-main').compareDocumentPosition(document.querySelector('.rv-panel')) & Node.DOCUMENT_POSITION_FOLLOWING));
@@ -114,7 +130,7 @@ ok('viewer closes on Escape', (await p.locator('.rv-viewer').count()) === 0);
 if (process.argv[2]) await p.screenshot({ path: process.argv[2] });
 
 // a second vault joins the same fold, with vault names before titles; removing it leaves the first
-await p.evaluate(() => window.__cmds.find((c) => c.label === 'External Vault References: Add vault folder').callback());
+await p.locator('#settings-box button', { hasText: 'Add vault folder' }).click();
 await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('Work Notes/Alpha budget'), null, { timeout: 10000 }).catch(() => {});
 const all = await p.locator('.rv-panel').textContent();
 ok('one fold for both vaults, titles prefixed with vault name', (await p.locator('.rv-sec').count()) === 1 && all.includes('5 External Vault References') && all.includes('My Vault/Projects/Project Alpha') && all.includes('Work Notes/Alpha budget') && all.includes('Budget for'));
@@ -122,9 +138,12 @@ if (process.argv[2]) await p.screenshot({ path: process.argv[2].replace(/\.png$/
 const cacheKeys = () => p.evaluate(() => new Promise((res) => { const r = indexedDB.open('roam-vaults-cache', 1); r.onsuccess = () => { const q = r.result.transaction('vaults').objectStore('vaults').getAllKeys(); q.onsuccess = () => { r.result.close(); res(q.result); }; }; }));
 await p.waitForTimeout(2500); // let the worker's debounced cache save land
 ok('second vault cached', (await cacheKeys()).includes('Work Notes'));
-await p.evaluate(() => window.__cmds.find((c) => c.label === 'External Vault References: Remove vault "Work Notes"').callback());
+ok('settings list shows both vaults', (await p.locator('#settings-box .rv-settings-row').count()) === 2);
+if (process.argv[2]) await p.locator('#settings-box').screenshot({ path: process.argv[2].replace(/\.png$/, '-settings.png') });
+await p.locator('#settings-box .rv-settings-row', { hasText: 'Work Notes' }).locator('button', { hasText: 'Remove' }).click();
 
 ok('remove deletes only that vault\'s cache', await p.waitForFunction(() => true).then(async () => { await p.waitForTimeout(300); const k = await cacheKeys(); return !k.includes('Work Notes') && k.includes('My Vault'); }));
+ok('settings list updates after remove', await p.waitForFunction(() => document.querySelectorAll('#settings-box .rv-settings-row').length === 1, null, { timeout: 3000 }).then(() => true, () => false));
 ok('remove drops only that vault', await p.waitForFunction(() => { const t = document.querySelector('.rv-panel').textContent; return !t.includes('Alpha budget') && t.includes('4 External Vault References') && !t.includes('My Vault/'); }, null, { timeout: 3000 }).then(() => true, () => false));
 
 await p.evaluate(() => window.__ext.onunload());

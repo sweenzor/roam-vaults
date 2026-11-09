@@ -7,6 +7,7 @@ export const ATTR = 'data-roam-vaults';
 
 const STYLES = `
 .rv-panel{padding-top:12px;margin:0 -4px 0 -16px}
+.rv-panel:empty{display:none}
 .rv-sec{margin-bottom:12px}
 .rv-sec-head{display:flex;align-items:center;height:24px;gap:2px;cursor:pointer;user-select:none}
 .rv-sec-head strong{color:rgb(206,217,224)}
@@ -14,8 +15,6 @@ const STYLES = `
 .rv-sec-head:hover .rv-head-caret{visibility:visible;opacity:1}
 .rv-meta{color:rgb(206,217,224);font-size:12px;margin-left:8px}
 .rv-spacer{flex:1}
-.rv-tool{visibility:hidden;color:#8a9ba8 !important;font-size:12px}
-.rv-sec-head:hover .rv-tool{visibility:visible}
 .rv-sec.rv-collapsed .rv-sec-body{display:none}
 .rv-sec-body{margin-top:4px}
 .rv-empty{color:#8a9ba8;font-size:13px;padding:2px 0 2px 16px}
@@ -61,6 +60,12 @@ const STYLES = `
 .rv-viewer-body h2{font-size:20px}.rv-viewer-body h3{font-size:17px}.rv-viewer-body h4,.rv-viewer-body h5,.rv-viewer-body h6{font-size:15px}
 .rv-preview h2,.rv-preview h3,.rv-preview h4{margin:8px 0 4px;font-weight:600}
 .bp3-dark .rv-viewer-body.rv-preview{color:inherit}
+.rv-settings{display:flex;flex-direction:column;gap:10px;min-width:280px}
+.rv-settings-list{display:flex;flex-direction:column;gap:6px}
+.rv-settings-actions{display:flex;gap:8px}
+.rv-settings-row{display:flex;align-items:center;gap:8px}
+.rv-settings-name{flex:1;font-weight:500}
+.rv-settings-status{font-weight:400;font-size:12px;color:#8a9ba8}
 .bp3-dark .rv-sec-head strong,.bp3-dark .rv-meta{color:#5c7080}
 `;
 
@@ -124,18 +129,10 @@ const groupOpen = new Map<string, boolean>();
 const caret = (open: boolean, extra = '') =>
   h('span', { class: `bp3-icon-standard bp3-icon-caret-down rm-caret ${open ? 'rm-caret-open' : 'rm-caret-closed'} ${extra}` });
 
-export function renderPanel(el: HTMLElement, vaults: PanelVault[], add: () => void) {
+export function renderPanel(el: HTMLElement, vaults: PanelVault[]) {
   el.className = 'rv-panel';
-  const tool = (label: string, title: string, fn: () => void) =>
-    h('button', { class: 'bp3-button bp3-minimal bp3-small rv-tool', title, onclick: (e: Event) => { e.stopPropagation(); fn(); } }, label);
-  if (!vaults.length) {
-    el.replaceChildren(h('div', { class: 'rv-sec' },
-      sectionHead('External Vault References', ''),
-      h('div', { class: 'rv-sec-body' }, h('div', { class: 'rv-empty' },
-        'Add a folder of Markdown notes, such as an Obsidian vault, to see its notes about this page. ',
-        h('button', { class: 'bp3-button bp3-small', onclick: add }, 'Add vault folder')))));
-    return;
-  }
+  // With no vaults connected the page shows nothing; vaults are added in the extension's settings.
+  if (!vaults.length) { el.replaceChildren(); return; }
   // One fold for every vault. Vaults that aren't ready say so in a line of their own.
   const notices: HTMLElement[] = [];
   const ready: { v: PanelVault; r: PageResult }[] = [];
@@ -159,8 +156,7 @@ export function renderPanel(el: HTMLElement, vaults: PanelVault[], add: () => vo
   else if (!notices.length) body.append(h('div', { class: 'rv-empty' }, 'No vault notes match or link to this page.'));
   const collapsed = isCollapsed();
   el.replaceChildren(h('div', { class: 'rv-sec' + (collapsed ? ' rv-collapsed' : '') },
-    sectionHead(`${n ? `${n} ` : ''}External Vault References`, notLive ? 'not live' : '', !collapsed,
-      [tool('Add vault', 'Add another vault folder', add)]),
+    sectionHead(`${n ? `${n} ` : ''}External Vault References`, notLive ? 'not live' : '', !collapsed),
     body));
 }
 
