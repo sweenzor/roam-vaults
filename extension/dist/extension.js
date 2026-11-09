@@ -746,12 +746,12 @@ function createSettingsPanel(extensionAPI, m) {
       return React.createElement("div", { ref });
     };
     extensionAPI.settings.panel.create({
-      tabTitle: "External Vault References",
+      tabTitle: "Vaults",
       settings: [{ id: "vaults", name: "Vaults", description, action: { type: "reactComponent", component: VaultList } }]
     });
   } else {
     extensionAPI.settings.panel.create({
-      tabTitle: "External Vault References",
+      tabTitle: "Vaults",
       settings: [{ id: "add-vault", name: "Add vault folder", description, action: { type: "button", onClick: m.add, content: "Add vault folder" } }]
     });
   }
