@@ -36,6 +36,26 @@ var saveVaults = (list) => run("readwrite", (s) => {
   s.delete(OLD_KEY);
   return s.put(list, KEY);
 });
+function deleteCache(id) {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("roam-vaults-cache", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("vaults");
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => {
+      const db = r.result;
+      const tx = db.transaction("vaults", "readwrite");
+      tx.objectStore("vaults").delete(id);
+      tx.oncomplete = () => {
+        db.close();
+        res();
+      };
+      tx.onerror = () => {
+        db.close();
+        rej(tx.error);
+      };
+    };
+  });
+}
 
 // src/core/frontmatter.ts
 var NO_FM = { bodyStart: 0, bodyStartLine: 0, raw: null, props: null, error: null };
@@ -812,8 +832,10 @@ async function addVault() {
   await v.connect(false);
   notify(`Added external vault "${h2.name}".`);
 }
+var dropCache = (v) => deleteCache(v.id).catch((e) => console.warn("[roam-vaults] cache not cleared", e));
 async function removeVault(v) {
   v.stop();
+  await dropCache(v);
   vaults = vaults.filter((x) => x !== v);
   await save();
   refreshAll();
@@ -821,6 +843,7 @@ async function removeVault(v) {
 }
 async function removeAll() {
   vaults.forEach((v) => v.stop());
+  await Promise.all(vaults.map(dropCache));
   vaults = [];
   await save();
   refreshAll();

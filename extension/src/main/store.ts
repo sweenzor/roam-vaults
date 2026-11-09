@@ -29,3 +29,19 @@ export async function loadVaults(): Promise<SavedVault[]> {
   return old ? [{ id: old.name, handle: old }] : [];
 }
 export const saveVaults = (list: SavedVault[]) => run<void>('readwrite', (s) => { s.delete(OLD_KEY); return s.put(list, KEY); });
+
+/** Delete a removed vault's parsed-note cache (written by the worker, keyed by vault id). */
+export function deleteCache(id: string): Promise<void> {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('roam-vaults-cache', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('vaults');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => {
+      const db = r.result;
+      const tx = db.transaction('vaults', 'readwrite');
+      tx.objectStore('vaults').delete(id);
+      tx.oncomplete = () => { db.close(); res(); };
+      tx.onerror = () => { db.close(); rej(tx.error); };
+    };
+  });
+}

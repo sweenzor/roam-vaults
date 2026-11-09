@@ -1,6 +1,6 @@
 // External Vault References: shows notes from local Markdown vaults (Obsidian) that match or
 // link to the Roam page you are on. Read-only; nothing is written to the graph; no network.
-import { loadVaults, saveVaults } from './store.ts';
+import { loadVaults, saveVaults, deleteCache } from './store.ts';
 import { pickVaultFolder, ensurePermission } from './picker.ts';
 import { ATTR, installStyles, renderPanel, notify, removeToast, openViewer, closeViewer, type SectionState, type SectionActions, type PanelVault, type ViewerActions } from './ui.ts';
 import type { PageResult } from '../engine.ts';
@@ -98,8 +98,10 @@ async function addVault() {
   await v.connect(false);
   notify(`Added external vault "${h.name}".`);
 }
+const dropCache = (v: Vault) => deleteCache(v.id).catch((e) => console.warn('[roam-vaults] cache not cleared', e));
 async function removeVault(v: Vault) {
-  v.stop();
+  v.stop(); // terminates the worker first, so no pending cache save can recreate the entry
+  await dropCache(v);
   vaults = vaults.filter((x) => x !== v);
   await save();
   refreshAll();
@@ -107,6 +109,7 @@ async function removeVault(v: Vault) {
 }
 async function removeAll() {
   vaults.forEach((v) => v.stop());
+  await Promise.all(vaults.map(dropCache));
   vaults = [];
   await save();
   refreshAll();

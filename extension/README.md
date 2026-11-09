@@ -65,8 +65,8 @@ them.
 ### Removing a vault
 
 Hover the vault's section header and click **Remove**. To remove every vault at once, run
-**External Vault References: Remove all vaults**. Removing a vault only makes Roam forget the folder. Your
-files aren't touched.
+**External Vault References: Remove all vaults**. Removing a vault makes Roam forget the folder and deletes
+its cache. Your files aren't touched.
 
 ## Commands
 
@@ -84,8 +84,7 @@ files aren't touched.
   parsed notes that makes later starts fast, are kept in the Roam app's storage on this computer. They aren't
   stored in your graph and don't sync to your other devices or to other people in a shared graph.
 - **Folder access you control.** The extension can only read folders you choose. Removing a vault deletes
-  the saved folder access. The cache of parsed notes stays in Roam's local storage on this computer until
-  you clear Roam's site data.
+  its saved folder access and its cache of parsed notes.
 - **Who sees the section.** The section is drawn on your screen only. Collaborators on a shared graph don't
   see your vault unless they install the extension and add a vault themselves.
 

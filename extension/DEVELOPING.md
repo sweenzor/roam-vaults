@@ -33,7 +33,7 @@ Roam Depot tab.
   The worker is bundled into `extension.js` as a string at build time and started from a Blob URL, so the
   extension stays a single file and never loads code from the network.
 - Parsed notes are cached in IndexedDB by path, size and modification time, so later starts only re-read
-  changed files.
+  changed files. Removing a vault deletes its cache.
 - Folder handles are kept in this device's IndexedDB, never in Roam settings, which sync through the graph.
 - `FileSystemObserver` watches the folder, so edits made in Obsidian show up within a second.
 - Daily notes use the format in `.obsidian/daily-notes.json`, falling back to `YYYY-MM-DD`.
