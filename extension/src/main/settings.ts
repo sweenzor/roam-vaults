@@ -31,12 +31,9 @@ export function renderSettings(el: HTMLElement, m: SettingsModel) {
             h('div', { class: 'rv-settings-name' }, v.name, h('div', { class: 'rv-settings-status' }, v.status)),
             v.needsPermission ? btn('Reconnect', v.reconnect, 'bp3-intent-primary') : null,
             btn('Remove', v.remove, 'bp3-minimal'))))
-        : h('div', { class: 'rv-settings-status' }, 'No vaults yet.'),
+        : null,
       h('div', { class: 'rv-settings-actions' }, btn('Add vault folder', m.add, 'bp3-intent-primary'),
-        vs.length ? btn('Rescan', m.rescan, 'bp3-minimal') : null),
-      h('div', { class: 'rv-settings-status' },
-        'Pick the vault folder itself, for example Documents/My Vault, not Documents. ' +
-        'Removing a vault forgets it on this device and deletes its cache; the folder is untouched.')));
+        vs.length ? btn('Rescan', m.rescan, 'bp3-minimal') : null)));
 }
 
 /** Register the settings page. Uses Roam's reactComponent setting when Roam provides React,
