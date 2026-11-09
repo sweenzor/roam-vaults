@@ -9,7 +9,7 @@ vault, that are about the page you're on or link to it.
 It only reads your vault. Nothing from the vault is written to your Roam graph, and nothing is sent over the
 network.
 
-![A Roam page with Linked References and, below them, External Vault References from an Obsidian vault](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/page-with-external-vault-references.jpg)
+![External Vault References on a Roam page, with one section for each of two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/two-vaults.jpg)
 
 ## What it shows
 
@@ -20,13 +20,18 @@ Each vault you add gets its own section. Notes are titled by their path in the v
   letter case), lists the page title as an alias, sits at the same folder path (Roam `A/B` and `A/B.md`), or
   is the daily note for the same date. If several notes match, they're all shown. Click the caret to unfold
   the note and read it in place.
+
 - **Notes that link here.** These are notes that link to the matching note, or contain `[[This Page]]` even
   when no such note exists. Links in frontmatter count too. Each linking line is shown like a Roam block.
 - **Notes tagged here.** These are notes tagged `#this-page`, shown with the tag. A Roam namespace `a/b`
   matches the nested tag `#a/b`.
 
+![The matching note, Planning, unfolded in place in the second vault's section](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/unfolded-note.jpg)
+
 Click a note title or line to read the whole note in Roam. Links between notes work inside the viewer.
 To jump to a note in Obsidian, click **Open in Obsidian** in the viewer.
+
+![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/note-viewer.jpg)
 
 The section updates by itself. When you edit a note in Obsidian, the change shows up in Roam within about a
 second.
@@ -59,8 +64,6 @@ the extension tells you, and you need to quit and reopen Roam before you try aga
 
 Run **Add vault folder** again to add another vault. Each vault gets its own section, in the order you added
 them.
-
-![Two External Vault References sections, one per vault](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/two-vaults.jpg)
 
 ### Removing a vault
 

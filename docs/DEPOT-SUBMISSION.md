@@ -83,8 +83,8 @@ downloaded by anyone who has it.
 - [ ] Merge Phase 1 (PR #2) and this docs PR.
 - [ ] Create a `main` branch and make it the default branch. The repo currently has no `main`, and the
       marketplace links to `source_url`.
-- [ ] Re-take the two screenshots in `docs/images/` once the UI is final. They predate the namespaced
-      titles and the removal of the match badge.
+- [ ] Check the three draft screenshots in `docs/images/` (taken 2026-11-09 on the current UI) and
+      re-take any that change before release.
 - [ ] Test the Depot build: in a fresh clone run `cd extension && ./build.sh`, then load the `extension`
       folder in developer mode on a hosted graph.
 - [ ] Change "0.1.0 (unreleased)" in `extension/CHANGELOG.md` to the release date. `package.json` is
