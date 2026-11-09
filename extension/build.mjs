@@ -12,5 +12,5 @@ await esbuild.build({
   outfile: 'dist/extension.js',
   define: { WORKER_SOURCE: JSON.stringify(worker.outputFiles[0].text) },
 });
-fs.copyFileSync('README.md', 'dist/README.md');
+for (const f of ['README.md', 'CHANGELOG.md']) fs.copyFileSync(f, `dist/${f}`);
 console.log('built dist/extension.js', fs.statSync('dist/extension.js').size, 'bytes');

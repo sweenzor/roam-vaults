@@ -1,1 +1,3 @@
 node_modules/
+# written by build.sh for Roam Depot
+/extension.js
