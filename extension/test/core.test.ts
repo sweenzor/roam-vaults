@@ -93,6 +93,14 @@ test('dates', () => {
   assert.equal(formatIso('2026-11-05', 'DD.MM.YYYY'), '05.11.2026');
 });
 
+test('a date format with an unclosed [ is read literally instead of looping forever', () => {
+  assert.equal(parseWithFormat('Journal/2026-11-05 [draft', compileFormat('YYYY-MM-DD [draft')), '2026-11-05');
+  assert.equal(formatIso('2026-11-05', 'YYYY-MM-DD [draft'), '2026-11-05 [draft');
+  // closed brackets still mean literal text
+  assert.equal(parseWithFormat('Daily 2026-11-05', compileFormat('[Daily] YYYY-MM-DD')), '2026-11-05');
+  assert.equal(formatIso('2026-11-05', '[Daily] YYYY-MM-DD'), 'Daily 2026-11-05');
+});
+
 test('matcher tiers', () => {
   const idx = new VaultIndex();
   idx.build([

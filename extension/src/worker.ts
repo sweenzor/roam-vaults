@@ -12,9 +12,11 @@ let engine: VaultEngine | null = null;
 let vaultKey = '';
 let observer: any = null;
 let fileHandles = new Map<string, FileSystemFileHandle>();
+let live = false;      // is the file watcher running?
+let notLiveWhy = '';
 
 const post = (msg: unknown) => self.postMessage(msg);
-const status = (state: string, detail = '') => post({ type: 'status', state, detail });
+const status = (state: string, detail = '') => post({ type: 'status', state, detail, live, notLiveWhy });
 
 // ---------- file system over a FileSystemDirectoryHandle ----------
 async function getFileHandle(path: string): Promise<FileSystemFileHandle | null> {
@@ -41,6 +43,7 @@ const handleFS: VaultFS = {
         if (name.startsWith('.')) continue; // .obsidian, .trash, .git
         const rel = (prefix ? `${prefix}/${name}` : name).normalize('NFC');
         if (h.kind === 'directory') await walk(h as FileSystemDirectoryHandle, rel);
+        else if (!/\.md$/i.test(name)) out.push({ path: rel, size: 0, mtime: 0 }); // only notes need a size and time
         else {
           handles.set(rel, h as FileSystemFileHandle);
           pending.push((h as FileSystemFileHandle).getFile().then(
@@ -122,10 +125,13 @@ async function dailyFormats(): Promise<string[]> {
 // ---------- watcher ----------
 let pendingPaths = new Set<string>();
 let needRescan = false;
+let rewatch = false;   // the watcher reported "errored": it has stopped and must be started again
+let building = 0;      // scans in progress
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 function onRecords(records: any[]) {
   for (const r of records) {
     const path = (r.relativePathComponents ?? []).join('/').normalize('NFC');
+    if (r.type === 'errored') rewatch = true;
     if (r.type === 'unknown' || r.type === 'errored') { needRescan = true; continue; }
     if (!path || path.split('/').some((s: string) => s.startsWith('.'))) continue;
     if (r.type === 'moved' && r.relativePathMovedFrom) pendingPaths.add(r.relativePathMovedFrom.join('/').normalize('NFC'));
@@ -137,40 +143,56 @@ function onRecords(records: any[]) {
   flushTimer = setTimeout(flush, 300); // editors write files in bursts
 }
 async function flush() {
-  if (!engine) return;
+  if (!root) return;
+  // A scan is running: keep the changes and apply them to the index it builds.
+  if (building) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, 300); return; }
+  if (needRescan || !engine) {
+    needRescan = false; pendingPaths = new Set();
+    if (rewatch) { rewatch = false; await watch(); }
+    await build().catch(() => {}); // build() has already reported the failure
+    return;
+  }
   const paths = [...pendingPaths]; pendingPaths = new Set();
-  let changed = false;
-  if (needRescan) { needRescan = false; await build(); return; }
-  changed = await engine.refresh(paths);
-  if (changed) { saveCacheSoon(); post({ type: 'changed', paths }); }
+  if (await engine.refresh(paths)) { saveCacheSoon(); post({ type: 'changed', paths }); }
 }
+/** Start the file watcher. Whether it is running goes out with every status message. */
 async function watch() {
   observer?.disconnect();
-  observer = null;
-  if (typeof FileSystemObserver === 'undefined') { status('ready', 'no live updates: FileSystemObserver unavailable'); return; }
+  observer = null; live = false;
+  if (typeof FileSystemObserver === 'undefined') { notLiveWhy = 'FileSystemObserver unavailable'; return; }
   try {
-    observer = new FileSystemObserver(onRecords);
-    await observer.observe(root, { recursive: true });
-  } catch (e) { observer = null; status('ready', `no live updates: ${(e as Error).message}`); }
+    const o = new FileSystemObserver(onRecords);
+    await o.observe(root, { recursive: true });
+    observer = o; live = true; notLiveWhy = '';
+  } catch (e) { notLiveWhy = (e as Error).message; }
 }
 
 // ---------- commands ----------
 async function build() {
+  building++;
   status('indexing', 'reading files');
-  engine = new VaultEngine(handleFS, await dailyFormats());
-  const stats = await engine.build(await loadCache(vaultKey), (done, total) => status('indexing', `${done} of ${total} notes`));
-  saveCacheSoon();
-  status('ready', `${stats.notes} ${stats.notes === 1 ? 'note' : 'notes'}`);
-  post({ type: 'changed', paths: [] });
-  return stats;
+  try {
+    if (!root) throw new Error('The vault is not connected.');
+    // The index in use stays in place until the new one is complete.
+    const next = new VaultEngine(handleFS, await dailyFormats());
+    const stats = await next.build(await loadCache(vaultKey), (done, total) => status('indexing', `${done} of ${total} notes`));
+    engine = next;
+    saveCacheSoon();
+    status('ready', `${stats.notes} ${stats.notes === 1 ? 'note' : 'notes'}`);
+    post({ type: 'changed', paths: [] });
+    return stats;
+  } catch (e) {
+    // Say so, or the vault would stay "indexing" for good (folder moved, deleted or unmounted).
+    status('error', `${(e as Error).name}: ${(e as Error).message}`);
+    throw e;
+  } finally { building--; }
 }
 
 const commands: Record<string, (a: any) => Promise<unknown> | unknown> = {
   async open({ handle, key }) {
     root = handle; vaultKey = key; fileHandles = new Map();
-    const stats = await build();
-    await watch();
-    return stats;
+    await watch(); // before the scan, so a file edited while it runs is not missed
+    return build();
   },
   rescan: () => build(),
   query: ({ title }) => engine ? engine.query(title) : null,

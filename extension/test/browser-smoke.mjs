@@ -153,6 +153,91 @@ ok('page with no matches shows nothing', await p.waitForFunction(() => { const e
 await p.evaluate(() => window.__ext.onunload());
 ok('unload removes everything', (await p.locator('[data-roam-vaults]').count()) === 0);
 
+// ---------- failure paths, each in a fresh browser context (so nothing is saved from above) ----------
+async function fresh() {
+  const q = await (await browser.newContext()).newPage();
+  q.on('console', (m) => console.log('[page]', m.text()));
+  await q.goto(url);
+  await q.evaluate(async () => {
+    const vault = await (await navigator.storage.getDirectory()).getDirectoryHandle('My Vault', { create: true });
+    const w = await (await vault.getFileHandle('Other.md', { create: true })).createWritable();
+    await w.write('see [[Project Alpha]]\n'); await w.close();
+    window.showDirectoryPicker = async () => vault;
+    window.__lookups = 0;
+    window.roamAlphaAPI = { ui: { mainWindow: { getOpenPageOrBlockUid: async () => { window.__lookups++; return 'uid-alpha'; } } }, pull: () => ({ ':node/title': 'Project Alpha' }) };
+    window.__effects = [];
+    window.React = { createElement: (t, props) => ({ t, props }), useRef: () => (window.__settingsRef = { current: null }), useEffect: (fn) => window.__effects.push(fn) };
+    window.__api = { settings: { panel: { create: (cfg) => { window.__settings = cfg; } } } };
+    window.__ext = (await import('/extension.js')).default;
+  });
+  return q;
+}
+const mountSettings = (q) => q.evaluate(() => {
+  const box = document.createElement('div'); box.id = 'settings-box'; document.body.append(box);
+  window.__settings.settings[0].action.component(); window.__settingsRef.current = box; window.__effects.forEach((fn) => fn());
+});
+const press = (q, label) => q.evaluate((label) => [...document.querySelectorAll('#settings-box button')].find((b) => b.textContent === label).click(), label);
+const row = (q) => q.locator('#settings-box .rv-settings-row').textContent();
+const rowHas = (q, text) => q.waitForFunction((text) => document.querySelector('#settings-box .rv-settings-row')?.textContent.includes(text), text, { timeout: 5000 }).then(() => true, () => false);
+
+{ // Rescan must leave a vault that still needs permission alone
+  const q = await fresh();
+  await q.evaluate(() => { FileSystemDirectoryHandle.prototype.queryPermission = () => Promise.resolve('prompt'); });
+  await q.evaluate(() => window.__ext.onload({ extensionAPI: window.__api }));
+  await mountSettings(q);
+  await press(q, 'Add vault folder');
+  await rowHas(q, 'Needs permission again');
+  await press(q, 'Rescan');
+  await q.waitForTimeout(800);
+  const t = await row(q);
+  ok('rescan leaves a vault that needs permission alone', t.includes('Needs permission again') && t.includes('Reconnect') && (await q.locator('.rv-toast').count()) === 0);
+  await q.context().close();
+}
+{ // a scan that fails says so instead of staying on "Indexing"
+  const q = await fresh();
+  await q.evaluate(() => window.__ext.onload({ extensionAPI: window.__api }));
+  await mountSettings(q);
+  await press(q, 'Add vault folder');
+  await rowHas(q, '1 note');
+  await q.evaluate(async () => (await navigator.storage.getDirectory()).removeEntry('My Vault', { recursive: true }));
+  await q.waitForTimeout(600);
+  await press(q, 'Rescan');
+  ok('a failed scan shows as "Couldn\'t read", not "Indexing"', await rowHas(q, "Couldn't read"));
+  ok('a failed scan clears the page section', await q.waitForFunction(() => !document.querySelector('.rv-panel')?.textContent.trim(), null, { timeout: 3000 }).then(() => true, () => false));
+  // the folder comes back: Rescan recovers without a reload
+  await q.evaluate(async () => {
+    const vault = await (await navigator.storage.getDirectory()).getDirectoryHandle('My Vault', { create: true });
+    const w = await (await vault.getFileHandle('Back.md', { create: true })).createWritable();
+    await w.write('again [[Project Alpha]]\n'); await w.close();
+  });
+  await press(q, 'Rescan');
+  ok('rescan recovers once the folder is back', await q.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('again'), null, { timeout: 5000 }).then(() => true, () => false));
+  await q.context().close();
+}
+{ // unloading while onload is still reading the saved vaults leaves nothing behind
+  const q = await fresh();
+  const left = await q.evaluate(async () => {
+    const loading = window.__ext.onload({ extensionAPI: window.__api });
+    window.__ext.onunload();
+    await loading;
+    await new Promise((r) => setTimeout(r, 300));
+    return document.querySelectorAll('[data-roam-vaults]').length;
+  });
+  ok('unload during load leaves nothing behind', left === 0);
+  await q.context().close();
+}
+{ // with no vaults, page changes cost no Roam lookups and add no panel
+  const q = await fresh();
+  const r = await q.evaluate(async () => {
+    await window.__ext.onload({ extensionAPI: window.__api });
+    const el = document.createElement('div'); document.body.append(el);
+    for (let i = 0; i < 20; i++) { el.append(document.createElement('span')); await new Promise((r) => setTimeout(r, 25)); }
+    return { lookups: window.__lookups, panels: document.querySelectorAll('.rv-panel').length };
+  });
+  ok('no page work while no vault is connected', r.lookups === 0 && r.panels === 0);
+  await q.context().close();
+}
+
 for (const [n, pass] of checks) console.log(pass ? 'PASS' : 'FAIL', n);
 await browser.close(); server.close();
 process.exit(checks.every(([, pass]) => pass) ? 0 : 1);

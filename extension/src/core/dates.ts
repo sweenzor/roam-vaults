@@ -47,7 +47,8 @@ export function compileFormat(fmt: string): DateFormat {
   let re = '', i = 0;
   const groups: Tok[] = [];
   outer: while (i < fmt.length) {
-    if (fmt[i] === '[') { const e = fmt.indexOf(']', i); re += esc(fmt.slice(i + 1, e)); i = e + 1; continue; }
+    // [text] is literal. A '[' that is never closed is an ordinary character.
+    if (fmt[i] === '[') { const e = fmt.indexOf(']', i); if (e > i) { re += esc(fmt.slice(i + 1, e)); i = e + 1; continue; } }
     for (const [t, tok] of TOKENS) if (fmt.startsWith(t, i)) { re += tok.re; if (tok.set) groups.push(tok); i += t.length; continue outer; }
     re += esc(fmt[i]); i++;
   }
@@ -77,7 +78,7 @@ export function formatIso(iso: string, fmt: string): string {
   };
   let out = '', i = 0;
   outer: while (i < fmt.length) {
-    if (fmt[i] === '[') { const e = fmt.indexOf(']', i); out += fmt.slice(i + 1, e); i = e + 1; continue; }
+    if (fmt[i] === '[') { const e = fmt.indexOf(']', i); if (e > i) { out += fmt.slice(i + 1, e); i = e + 1; continue; } }
     for (const [t] of TOKENS) if (fmt.startsWith(t, i)) { out += vals[t]; i += t.length; continue outer; }
     out += fmt[i]; i++;
   }
