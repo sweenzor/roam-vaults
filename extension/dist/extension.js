@@ -336,11 +336,9 @@ var STYLES = `
 .rv-sec-head strong{color:rgb(206,217,224)}
 .rv-sec-head .rv-head-caret{visibility:hidden}
 .rv-sec-head:hover .rv-head-caret{visibility:visible;opacity:1}
-.rv-meta{color:rgb(206,217,224);font-size:12px;margin-left:8px}
 .rv-spacer{flex:1}
 .rv-sec.rv-collapsed .rv-sec-body{display:none}
 .rv-sec-body{margin-top:4px}
-.rv-empty{color:#8a9ba8;font-size:13px;padding:2px 0 2px 16px}
 .rv-group{margin-bottom:10px}
 .rv-group-head{align-items:center;gap:2px;flex-wrap:wrap}
 .rv-group-caret{cursor:pointer}
@@ -389,7 +387,7 @@ var STYLES = `
 .rv-settings-row{display:flex;align-items:center;gap:8px}
 .rv-settings-name{flex:1;font-weight:500}
 .rv-settings-status{font-weight:400;font-size:12px;color:#8a9ba8}
-.bp3-dark .rv-sec-head strong,.bp3-dark .rv-meta{color:#5c7080}
+.bp3-dark .rv-sec-head strong{color:#5c7080}
 `;
 function installStyles() {
   const el = document.createElement("style");
@@ -438,45 +436,32 @@ function renderPanel(el, vaults2) {
     el.replaceChildren();
     return;
   }
-  const notices = [];
   const ready = [];
-  let n = 0, notLive = false;
+  let n = 0;
   for (const v of vaults2) {
     const s = v.state;
-    if (s.kind === "permission") notices.push(h(
-      "div",
-      { class: "rv-empty" },
-      `Roam needs permission to read "${v.name}" again. `,
-      h("button", { class: "bp3-button bp3-small", onclick: v.act.reconnect }, "Reconnect")
-    ));
-    else if (s.kind === "indexing") notices.push(h("div", { class: "rv-empty" }, `Reading "${v.name}"\u2026 ${s.detail}`));
-    else if (s.kind === "error") notices.push(h("div", { class: "rv-empty" }, `Couldn't read "${v.name}": ${s.detail}`));
-    else {
-      if (!s.live) notLive = true;
-      if (s.result) {
-        ready.push({ v, r: s.result });
-        n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
-      }
-    }
+    if (s.kind !== "ready" || !s.result) continue;
+    ready.push({ v, r: s.result });
+    n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
   }
-  const body = h("div", { class: "rv-sec-body" }, ...notices);
-  if (n) body.append(resultBody(ready, vaults2.length > 1));
-  else if (!notices.length) body.append(h("div", { class: "rv-empty" }, "No vault notes match or link to this page."));
+  if (!n) {
+    el.replaceChildren();
+    return;
+  }
   const collapsed = isCollapsed();
   el.replaceChildren(h(
     "div",
     { class: "rv-sec" + (collapsed ? " rv-collapsed" : "") },
-    sectionHead(`${n ? `${n} ` : ""}External Vault References`, notLive ? "not live" : "", !collapsed),
-    body
+    sectionHead(`${n} External Vault References`, !collapsed),
+    h("div", { class: "rv-sec-body" }, resultBody(ready, vaults2.length > 1))
   ));
 }
-function sectionHead(label, meta, open2 = true, tools = []) {
+function sectionHead(label, open2 = true, tools = []) {
   const head = h(
     "div",
     { class: "rv-sec-head" },
     caret(open2, "rv-head-caret"),
     h("strong", {}, label),
-    meta ? h("span", { class: "rv-meta" }, meta) : null,
     h("span", { class: "rv-spacer" }),
     ...tools
   );
@@ -556,20 +541,18 @@ ${path}`;
       b.path,
       true,
       [tagRef(v, b.path)],
-      () => h("div", {}, ...b.lines.map((l) => blockEl(l.text, () => v.act.view(b.path, l.line), l.line)))
+      () => h("div", {}, ...b.lines.map((l) => blockEl(l.text, () => v.act.view(b.path, l.line))))
     ));
   for (const { v, r } of list) for (const t of r.tagged) if (tagsOf.get(v).has(t.path))
     out.append(group(v, "tag", t.path, false, [tagRef(v, t.path)], preview(v, t.path)));
   return out;
 }
-function blockEl(text, onclick, line) {
+function blockEl(text, onclick) {
   const t = h("div", { class: "rv-block-text" });
-  if (text) inline(t, text);
-  else t.append("(link)");
-  return h("div", { class: "rv-block rm-reference-item", title: `Line ${line + 1}`, onclick }, h("span", { class: "rv-bullet" }), t);
+  inline(t, text);
+  return h("div", { class: "rv-block rm-reference-item", onclick }, h("span", { class: "rv-bullet" }), t);
 }
 async function loadPreview(el, path, act) {
-  el.append("Loading\u2026");
   try {
     el.replaceChildren(renderMarkdown(await act.read(path)));
     wireLinks(el, path, (to) => act.view(to), act.resolve);
@@ -583,10 +566,7 @@ function wireLinks(el, from, open2, resolve) {
       e.stopPropagation();
       const to = await resolve(a.dataset.target, from);
       if (to) open2(to);
-      else {
-        a.classList.add("rv-missing");
-        a.title = "No such note in the vault";
-      }
+      else a.classList.add("rv-missing");
     });
   });
 }
@@ -605,7 +585,7 @@ function closeViewer() {
 async function openViewer(path, line, act) {
   closeViewer();
   const title = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
-  const body = h("div", { class: "rv-viewer-body" }, "Loading\u2026");
+  const body = h("div", { class: "rv-viewer-body" });
   overlay = h(
     "div",
     { class: "rv-overlay", [ATTR]: "viewer", onclick: (e) => {
@@ -714,17 +694,12 @@ function renderSettings(el, m) {
         h("div", { class: "rv-settings-name" }, v.name, h("div", { class: "rv-settings-status" }, v.status)),
         v.needsPermission ? btn("Reconnect", v.reconnect, "bp3-intent-primary") : null,
         btn("Remove", v.remove, "bp3-minimal")
-      ))) : h("div", { class: "rv-settings-status" }, "No vaults yet."),
+      ))) : null,
       h(
         "div",
         { class: "rv-settings-actions" },
         btn("Add vault folder", m.add, "bp3-intent-primary"),
         vs.length ? btn("Rescan", m.rescan, "bp3-minimal") : null
-      ),
-      h(
-        "div",
-        { class: "rv-settings-status" },
-        "Pick the vault folder itself, for example Documents/My Vault, not Documents. Removing a vault forgets it on this device and deletes its cache; the folder is untouched."
       )
     )
   );
@@ -882,7 +857,6 @@ async function addVault() {
   vaults.push(v);
   await save();
   await v.connect(false);
-  notify(`Added external vault "${h2.name}".`);
 }
 var dropCache = (v) => deleteCache(v.id).catch((e) => console.warn("[roam-vaults] cache not cleared", e));
 async function removeVault(v) {
@@ -891,7 +865,6 @@ async function removeVault(v) {
   vaults = vaults.filter((x) => x !== v);
   await save();
   refreshAll();
-  notify(`Removed external vault "${v.name}". The folder itself is untouched.`);
 }
 async function openPageTitle() {
   const api = window.roamAlphaAPI;

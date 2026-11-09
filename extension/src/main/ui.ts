@@ -13,11 +13,9 @@ const STYLES = `
 .rv-sec-head strong{color:rgb(206,217,224)}
 .rv-sec-head .rv-head-caret{visibility:hidden}
 .rv-sec-head:hover .rv-head-caret{visibility:visible;opacity:1}
-.rv-meta{color:rgb(206,217,224);font-size:12px;margin-left:8px}
 .rv-spacer{flex:1}
 .rv-sec.rv-collapsed .rv-sec-body{display:none}
 .rv-sec-body{margin-top:4px}
-.rv-empty{color:#8a9ba8;font-size:13px;padding:2px 0 2px 16px}
 .rv-group{margin-bottom:10px}
 .rv-group-head{align-items:center;gap:2px;flex-wrap:wrap}
 .rv-group-caret{cursor:pointer}
@@ -66,7 +64,7 @@ const STYLES = `
 .rv-settings-row{display:flex;align-items:center;gap:8px}
 .rv-settings-name{flex:1;font-weight:500}
 .rv-settings-status{font-weight:400;font-size:12px;color:#8a9ba8}
-.bp3-dark .rv-sec-head strong,.bp3-dark .rv-meta{color:#5c7080}
+.bp3-dark .rv-sec-head strong{color:#5c7080}
 `;
 
 export function installStyles(): () => void {
@@ -133,38 +131,27 @@ export function renderPanel(el: HTMLElement, vaults: PanelVault[]) {
   el.className = 'rv-panel';
   // With no vaults connected the page shows nothing; vaults are added in the extension's settings.
   if (!vaults.length) { el.replaceChildren(); return; }
-  // One fold for every vault. Vaults that aren't ready say so in a line of their own.
-  const notices: HTMLElement[] = [];
+  // Like Roam's own reference sections, nothing explains itself: no matches means no section,
+  // and vaults that are indexing, unreadable or waiting for permission are shown only in settings.
   const ready: { v: PanelVault; r: PageResult }[] = [];
-  let n = 0, notLive = false;
+  let n = 0;
   for (const v of vaults) {
     const s = v.state;
-    if (s.kind === 'permission') notices.push(h('div', { class: 'rv-empty' }, `Roam needs permission to read "${v.name}" again. `,
-      h('button', { class: 'bp3-button bp3-small', onclick: v.act.reconnect }, 'Reconnect')));
-    else if (s.kind === 'indexing') notices.push(h('div', { class: 'rv-empty' }, `Reading "${v.name}"… ${s.detail}`));
-    else if (s.kind === 'error') notices.push(h('div', { class: 'rv-empty' }, `Couldn't read "${v.name}": ${s.detail}`));
-    else {
-      if (!s.live) notLive = true;
-      if (s.result) {
-        ready.push({ v, r: s.result });
-        n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
-      }
-    }
+    if (s.kind !== 'ready' || !s.result) continue;
+    ready.push({ v, r: s.result });
+    n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
   }
-  const body = h('div', { class: 'rv-sec-body' }, ...notices);
-  if (n) body.append(resultBody(ready, vaults.length > 1));
-  else if (!notices.length) body.append(h('div', { class: 'rv-empty' }, 'No vault notes match or link to this page.'));
+  if (!n) { el.replaceChildren(); return; }
   const collapsed = isCollapsed();
   el.replaceChildren(h('div', { class: 'rv-sec' + (collapsed ? ' rv-collapsed' : '') },
-    sectionHead(`${n ? `${n} ` : ''}External Vault References`, notLive ? 'not live' : '', !collapsed),
-    body));
+    sectionHead(`${n} External Vault References`, !collapsed),
+    h('div', { class: 'rv-sec-body' }, resultBody(ready, vaults.length > 1))));
 }
 
-function sectionHead(label: string, meta: string, open = true, tools: HTMLElement[] = []) {
+function sectionHead(label: string, open = true, tools: HTMLElement[] = []) {
   const head = h('div', { class: 'rv-sec-head' },
     caret(open, 'rv-head-caret'),
     h('strong', {}, label),
-    meta ? h('span', { class: 'rv-meta' }, meta) : null,
     h('span', { class: 'rv-spacer' }),
     ...tools);
   head.addEventListener('click', (e) => {
@@ -216,21 +203,20 @@ function resultBody(list: { v: PanelVault; r: PageResult }[], showVault: boolean
     out.append(group(v, 'page', c.path, false, [tagRef(v, c.path)], preview(v, c.path)));
   for (const { v, r } of list) for (const b of r.backlinks)
     out.append(group(v, 'links', b.path, true, [tagRef(v, b.path)],
-      () => h('div', {}, ...b.lines.map((l) => blockEl(l.text, () => v.act.view(b.path, l.line), l.line)))));
+      () => h('div', {}, ...b.lines.map((l) => blockEl(l.text, () => v.act.view(b.path, l.line))))));
   for (const { v, r } of list) for (const t of r.tagged) if (tagsOf.get(v)!.has(t.path))
     out.append(group(v, 'tag', t.path, false, [tagRef(v, t.path)], preview(v, t.path)));
   return out;
 }
 
 /** A linking line, drawn like a Roam block (bullet + text). Click opens the note at that line. */
-function blockEl(text: string, onclick: () => void, line: number) {
+function blockEl(text: string, onclick: () => void) {
   const t = h('div', { class: 'rv-block-text' });
-  if (text) inline(t, text); else t.append('(link)');
-  return h('div', { class: 'rv-block rm-reference-item', title: `Line ${line + 1}`, onclick }, h('span', { class: 'rv-bullet' }), t);
+  inline(t, text);
+  return h('div', { class: 'rv-block rm-reference-item', onclick }, h('span', { class: 'rv-bullet' }), t);
 }
 
 async function loadPreview(el: HTMLElement, path: string, act: SectionActions) {
-  el.append('Loading…');
   try {
     el.replaceChildren(renderMarkdown(await act.read(path)));
     wireLinks(el, path, (to) => act.view(to), act.resolve);
@@ -245,7 +231,7 @@ function wireLinks(el: HTMLElement, from: string, open: (to: string) => void, re
     a.addEventListener('click', async (e) => {
       e.stopPropagation();
       const to = await resolve(a.dataset.target!, from);
-      if (to) open(to); else { a.classList.add('rv-missing'); a.title = 'No such note in the vault'; }
+      if (to) open(to); else a.classList.add('rv-missing');
     });
   });
 }
@@ -263,7 +249,7 @@ export function closeViewer() { overlay?.remove(); overlay = null; document.remo
 export async function openViewer(path: string, line: number | undefined, act: ViewerActions) {
   closeViewer();
   const title = path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/i, '');
-  const body = h('div', { class: 'rv-viewer-body' }, 'Loading…');
+  const body = h('div', { class: 'rv-viewer-body' });
   overlay = h('div', { class: 'rv-overlay', [ATTR]: 'viewer', onclick: (e: Event) => { if (e.target === overlay) closeViewer(); } },
     h('div', { class: 'rv-viewer', role: 'dialog', 'aria-label': title },
       h('div', { class: 'rv-viewer-head' },

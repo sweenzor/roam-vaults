@@ -110,7 +110,6 @@ async function addVault() {
   vaults.push(v);
   await save();
   await v.connect(false);
-  notify(`Added external vault "${h.name}".`);
 }
 const dropCache = (v: Vault) => deleteCache(v.id).catch((e) => console.warn('[roam-vaults] cache not cleared', e));
 async function removeVault(v: Vault) {
@@ -119,7 +118,6 @@ async function removeVault(v: Vault) {
   vaults = vaults.filter((x) => x !== v);
   await save();
   refreshAll();
-  notify(`Removed external vault "${v.name}". The folder itself is untouched.`);
 }
 
 // ---------- which Roam page is each panel for? ----------
