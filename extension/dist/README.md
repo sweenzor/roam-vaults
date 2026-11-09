@@ -1,6 +1,6 @@
 # Vaults
 
-See your Obsidian notes next to your Roam pages.
+See notes from your Obsidian-style vaults in your Roam graph.
 
 Vaults adds an **External Vault References** section to every Roam page. It sits below Linked and
 Unlinked References and looks like them. It lists the notes in a local Markdown folder, such as an Obsidian
