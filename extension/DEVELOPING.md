@@ -1,4 +1,4 @@
-# Developing External Vault References
+# Developing Vaults
 
 The user-facing guide is [README.md](README.md). Roam Depot shows that file inside Roam, so keep
 developer notes here.

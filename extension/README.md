@@ -1,8 +1,8 @@
-# External Vault References
+# Vaults
 
 See your Obsidian notes next to your Roam pages.
 
-This extension adds an **External Vault References** section to every Roam page. It sits below Linked and
+Vaults adds an **External Vault References** section to every Roam page. It sits below Linked and
 Unlinked References and looks like them. It lists the notes in a local Markdown folder, such as an Obsidian
 vault, that are about the page you're on or link to it.
 
@@ -41,7 +41,7 @@ second.
 
 ## Getting started
 
-1. Install **External Vault References** from Roam Depot.
+1. Install **Vaults** from Roam Depot.
 2. Open any page. At the bottom, in the **External Vault References** section, click **Add vault folder**.
    You can also open the command palette (Cmd+P or Ctrl+P) and run
    **External Vault References: Add vault folder**.

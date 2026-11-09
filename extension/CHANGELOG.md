@@ -2,7 +2,7 @@
 
 ## 0.1.0 (unreleased)
 
-First release.
+First release of Vaults.
 
 - Adds an **External Vault References** section below Linked and Unlinked References on every page,
   styled like them.

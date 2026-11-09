@@ -1,4 +1,4 @@
-# Submitting External Vault References to Roam Depot
+# Submitting Vaults to Roam Depot
 
 Researched 2026-11-09 from the [roam-depot repo](https://github.com/Roam-Research/roam-depot) (README,
 workflows and build scripts) and Roam's
@@ -26,7 +26,7 @@ that only touch `.md` or image files are published without resetting the "code u
 
 | Field | Required | Our value |
 |---|---|---|
-| `name` | yes | External Vault References |
+| `name` | yes | Vaults (the section it adds in Roam is called External Vault References) |
 | `short_description` | yes | One line, shown in the marketplace list |
 | `author` | yes | Matt Sweeney (same as Autopin) |
 | `tags` | no | obsidian, markdown, vault, references, backlinks |
@@ -97,10 +97,10 @@ downloaded by anyone who has it.
 
 ## Draft PR description for roam-depot
 
-> **Add External Vault References**
+> **Add Vaults**
 >
-> Shows notes from a local Markdown folder (such as an Obsidian vault) that match or link to the current
-> Roam page, in a section below Linked References. Several vaults are supported, one section each.
+> Adds an External Vault References section that shows notes from a local Markdown folder (such as an Obsidian vault) that match or link to the current
+> Roam page, below Linked References. Several vaults are supported, one section each.
 >
 > - Read-only. Uses the File System Access API (`showDirectoryPicker`, read mode) on folders the user
 >   picks. Folder handles stay in local IndexedDB, never in the graph.
