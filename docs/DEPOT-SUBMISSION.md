@@ -7,12 +7,12 @@ workflows and build scripts) and Roam's
 ## How submission works
 
 1. The extension lives in its own public GitHub repo (this one).
-2. You fork `Roam-Research/roam-depot` and add one file, `extensions/sweenzor/roam-vaults-2.json`. The
+2. You fork `Roam-Research/roam-depot` and add one file, `extensions/sweenzor/roam-vaults.json`. The
    path must be `extensions/<github user>/<repo name>.json`. The draft is in
-   [`depot/roam-vaults-2.json`](depot/roam-vaults-2.json).
+   [`depot/roam-vaults.json`](depot/roam-vaults.json).
 3. You open a pull request against `Roam-Research/roam-depot` `main`.
 4. A GitHub Action clones this repo at `source_commit`, runs `build.sh`, and uploads a preview build. A bot
-   comments with a **PR-shorthand** such as `sweenzor+roam-vaults-2+1530`. Anyone can load that shorthand in
+   comments with a **PR-shorthand** such as `sweenzor+roam-vaults+1530`. Anyone can load that shorthand in
    **Settings → Roam Depot → Developer Extensions** to test the exact build reviewers will see.
 5. The Roam team reviews the code for security. Every update is reviewed, not only the first release.
    For example, [Roam Drop](https://github.com/Roam-Research/roam-depot/pull/1511) took 11 days, and the
@@ -30,8 +30,8 @@ that only touch `.md` or image files are published without resetting the "code u
 | `short_description` | yes | See notes from your Obsidian-style vaults in your Roam graph. |
 | `author` | yes | Matt Sweeney (same as Autopin) |
 | `tags` | no | obsidian, markdown, vault, okf, references, backlinks |
-| `source_url` | yes | https://github.com/sweenzor/roam-vaults-2 |
-| `source_repo` | yes | https://github.com/sweenzor/roam-vaults-2.git |
+| `source_url` | yes | https://github.com/sweenzor/roam-vaults |
+| `source_repo` | yes | https://github.com/sweenzor/roam-vaults.git |
 | `source_commit` | yes | The exact commit that is reviewed and published |
 | `source_subdir` | no | `extension` (see below) |
 | `stripe_account` | no | Only if you want revenue-share payouts from Roam |
@@ -51,7 +51,7 @@ That lets the extension stay in `extension/` next to the spike and docs.
 | `extension/build.sh` | Added. Runs `npm ci` and `npm run build` on Ubuntu 24.04; npm is available there. The job has a 5-minute limit, and the build takes seconds |
 
 Images in the README must be absolute URLs because Roam renders it outside GitHub. They currently load
-from `raw.githubusercontent.com/sweenzor/roam-vaults-2/main/docs/images/…`. Before submitting, re-pin them to
+from `raw.githubusercontent.com/sweenzor/roam-vaults/main/docs/images/…`. Before submitting, re-pin them to
 the release tag or commit so a later change on `main` can't alter the published README.
 
 ## Review rules, and how we meet them
@@ -91,8 +91,8 @@ downloaded by anyone who has it.
       already `0.1.0`.
 - [ ] Re-pin the README image URLs from `main` to `v0.1.0` (or the release commit), then tag that
       commit `v0.1.0` and push the tag.
-- [ ] Put the release commit's full SHA in `docs/depot/roam-vaults-2.json` as `source_commit`.
-- [ ] Fork `Roam-Research/roam-depot`, copy the JSON to `extensions/sweenzor/roam-vaults-2.json`, and open
+- [ ] Put the release commit's full SHA in `docs/depot/roam-vaults.json` as `source_commit`.
+- [ ] Fork `Roam-Research/roam-depot`, copy the JSON to `extensions/sweenzor/roam-vaults.json`, and open
       the PR with the description below.
 - [ ] When the bot posts the PR-shorthand, load it in Roam and check it once more.
 
@@ -112,4 +112,4 @@ downloaded by anyone who has it.
 > - No runtime dependencies. `build.sh` (in `extension/`, via `source_subdir`) runs `npm ci` and esbuild.
 > - Everything added in `onload` is removed in `onunload`.
 >
-> Source: https://github.com/sweenzor/roam-vaults-2 (MIT)
+> Source: https://github.com/sweenzor/roam-vaults (MIT)

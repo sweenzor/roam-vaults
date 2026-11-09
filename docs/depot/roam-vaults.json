@@ -3,8 +3,8 @@
   "short_description": "See notes from your Obsidian-style vaults in your Roam graph.",
   "author": "Matt Sweeney",
   "tags": ["obsidian", "markdown", "vault", "okf", "references", "backlinks"],
-  "source_url": "https://github.com/sweenzor/roam-vaults-2",
-  "source_repo": "https://github.com/sweenzor/roam-vaults-2.git",
+  "source_url": "https://github.com/sweenzor/roam-vaults",
+  "source_repo": "https://github.com/sweenzor/roam-vaults.git",
   "source_commit": "REPLACE_WITH_RELEASE_COMMIT_SHA",
   "source_subdir": "extension"
 }

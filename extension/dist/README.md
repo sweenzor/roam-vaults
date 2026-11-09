@@ -9,7 +9,7 @@ folders of Markdown notes, that are about the page you're on or link to it.
 It only reads your vault. Nothing from the vault is written to your Roam graph, and nothing is sent over the
 network.
 
-![External Vault References on a Roam page, listing notes from two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults-2/main/docs/images/one-section.png)
+![External Vault References on a Roam page, listing notes from two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults/main/docs/images/one-section.png)
 
 ## What's an Obsidian-style vault?
 
@@ -42,12 +42,12 @@ kinds of notes, in this order:
 - **Notes tagged here.** These are notes tagged `#this-page`, shown with the tag. A Roam namespace `a/b`
   matches the nested tag `#a/b`.
 
-![The matching note, work-vault/Planning, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults-2/main/docs/images/unfolded-note.png)
+![The matching note, work-vault/Planning, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/main/docs/images/unfolded-note.png)
 
 Click a note title or line to read the whole note in Roam. Links between notes work inside the viewer.
 If you use Obsidian, click **Open in Obsidian** in the viewer to jump to the note there.
 
-![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults-2/main/docs/images/note-viewer.png)
+![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/main/docs/images/note-viewer.png)
 
 The section updates by itself. When you edit a note in Obsidian or any other editor, the change shows up in Roam within about a
 second.
@@ -124,6 +124,6 @@ snapshot for a vault you wouldn't want shared that way.
 
 ## Feedback and source
 
-Report problems or ideas at [github.com/sweenzor/roam-vaults-2/issues](https://github.com/sweenzor/roam-vaults-2/issues).
+Report problems or ideas at [github.com/sweenzor/roam-vaults/issues](https://github.com/sweenzor/roam-vaults/issues).
 The source code, design notes and changelog are at
-[github.com/sweenzor/roam-vaults-2](https://github.com/sweenzor/roam-vaults-2).
+[github.com/sweenzor/roam-vaults](https://github.com/sweenzor/roam-vaults).
