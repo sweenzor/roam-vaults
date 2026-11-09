@@ -94,6 +94,8 @@ const panelActions: PanelActions = {
   reconnect: () => { if (handle) connect(handle, true); },
   view: (path, line) => openViewer(path, line, viewerActions),
   openInObsidian,
+  read: viewerActions.read,
+  resolve: viewerActions.resolve,
 };
 
 // ---------- which Roam page is each panel for? ----------
@@ -149,7 +151,7 @@ async function inject() {
         panel = document.createElement('div');
         panel.setAttribute(ATTR, 'panel');
         panel.className = 'rv-panel';
-        parent.insertBefore(panel, refs);
+        parent.insertBefore(panel, refs.nextSibling); // below Roam's own references
       }
       panel.dataset.title = title;
       fill(panel);

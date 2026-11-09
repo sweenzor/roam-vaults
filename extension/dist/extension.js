@@ -337,6 +337,11 @@ var CSS = `
 .rv-viewer-body .rv-props{font-size:12px;color:#5c7080;background:#f5f8fa;border-radius:4px;padding:6px 10px;margin:8px 0}
 .rv-viewer-body .rv-hl{background:#fff3b0;border-radius:3px}
 .rv-viewer-body blockquote{border-left:3px solid #d8e1e8;margin:4px 0;padding-left:10px;color:#5c7080}
+.rv-unfold{width:14px;display:inline-block;cursor:pointer;color:#8a8a99;user-select:none;transition:transform .1s}
+.rv-unfold:hover{color:#5c3bc4}
+.rv-unfold.rv-open{transform:rotate(90deg)}
+.rv-viewer-body.rv-preview{margin:4px 0 8px 14px;padding:4px 12px 8px;border-left:2px solid #e5e5ea;background:#fff;border-radius:0 4px 4px 0;max-height:480px;overflow:auto}
+.bp3-dark .rv-viewer-body.rv-preview{background:transparent;color:#ddd}
 .bp3-dark .rv-panel{background:rgba(138,92,246,.08)}
 .bp3-dark .rv-line{color:#ccc}
 `;
@@ -371,6 +376,7 @@ function removeToast() {
   toastEl?.remove();
   clearTimeout(toastTimer);
 }
+var unfolded = /* @__PURE__ */ new Set();
 var COLLAPSE_KEY = "roam-vaults:collapsed";
 var collapsed = () => {
   try {
@@ -437,14 +443,36 @@ function resultBody(r, act) {
       "div",
       { class: "rv-sec" },
       h("div", { class: "rv-sec-title" }, ambiguous ? `This page in the vault (${r.counterparts.length} candidates)` : "This page in the vault"),
-      ...r.counterparts.map((c) => h(
-        "div",
-        { class: "rv-row" },
-        noteLink(c.path, c.title),
-        folder(c.path),
-        h("span", { class: "rv-badge" + (c.how === "case" ? " rv-warn" : "") }, c.label),
-        obsidian(c.path)
-      ))
+      ...r.counterparts.map((c) => {
+        const preview = h("div", { class: "rv-viewer-body rv-preview" });
+        const caret = h("span", { class: "rv-unfold", role: "button", "aria-expanded": "false", title: "Show this note here" }, "\u25B8");
+        const set = (open2) => {
+          caret.classList.toggle("rv-open", open2);
+          caret.setAttribute("aria-expanded", String(open2));
+          caret.title = open2 ? "Hide this note" : "Show this note here";
+          preview.hidden = !open2;
+          if (open2) {
+            unfolded.add(c.path);
+            if (!preview.childNodes.length) loadPreview(preview, c.path, act);
+          } else unfolded.delete(c.path);
+        };
+        caret.addEventListener("click", () => set(preview.hidden));
+        set(unfolded.has(c.path));
+        return h(
+          "div",
+          {},
+          h(
+            "div",
+            { class: "rv-row" },
+            caret,
+            noteLink(c.path, c.title),
+            folder(c.path),
+            h("span", { class: "rv-badge" + (c.how === "case" ? " rv-warn" : "") }, c.label),
+            obsidian(c.path)
+          ),
+          preview
+        );
+      })
     ));
   }
   if (r.backlinks.length) {
@@ -469,6 +497,27 @@ function resultBody(r, act) {
     ));
   }
   return out;
+}
+async function loadPreview(el, path, act) {
+  el.append("Loading\u2026");
+  try {
+    el.replaceChildren(renderMarkdown(await act.read(path)));
+    wireLinks(el, path, (to) => act.view(to), act.resolve);
+  } catch (e) {
+    el.replaceChildren(`Couldn't read this note: ${e.message}`);
+  }
+}
+function wireLinks(el, from, open2, resolve) {
+  el.querySelectorAll(".rv-wl[data-target]").forEach((a) => {
+    a.addEventListener("click", async () => {
+      const to = await resolve(a.dataset.target, from);
+      if (to) open2(to);
+      else {
+        a.classList.add("rv-missing");
+        a.title = "No such note in the vault";
+      }
+    });
+  });
 }
 function snippetEl(text, onclick, line) {
   const el = h("div", { class: "rv-line", title: `Line ${line + 1}`, onclick });
@@ -516,16 +565,7 @@ async function openViewer(path, line, act) {
   try {
     const text = await act.read(path);
     body.replaceChildren(renderMarkdown(text, line));
-    body.querySelectorAll(".rv-wl[data-target]").forEach((a) => {
-      a.addEventListener("click", async () => {
-        const to = await act.resolve(a.dataset.target, path);
-        if (to) openViewer(to, void 0, act);
-        else {
-          a.classList.add("rv-missing");
-          a.title = "No such note in the vault";
-        }
-      });
-    });
+    wireLinks(body, path, (to) => openViewer(to, void 0, act), act.resolve);
     body.querySelector(".rv-hl")?.scrollIntoView({ block: "center" });
   } catch (e) {
     body.replaceChildren(`Couldn't read this note: ${e.message}`);
@@ -688,7 +728,9 @@ var panelActions = {
     if (handle) connect(handle, true);
   },
   view: (path, line) => openViewer(path, line, viewerActions),
-  openInObsidian
+  openInObsidian,
+  read: viewerActions.read,
+  resolve: viewerActions.resolve
 };
 async function openPageTitle() {
   const api = window.roamAlphaAPI;
@@ -739,7 +781,7 @@ async function inject() {
         panel = document.createElement("div");
         panel.setAttribute(ATTR, "panel");
         panel.className = "rv-panel";
-        parent.insertBefore(panel, refs);
+        parent.insertBefore(panel, refs.nextSibling);
       }
       panel.dataset.title = title;
       fill(panel);

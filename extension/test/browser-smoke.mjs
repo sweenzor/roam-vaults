@@ -72,6 +72,18 @@ ok('backlink snippet shown', t1.includes('see Project Alpha for context'));
 ok('daily backlink shown', t1.includes('2026-11-09'));
 ok('commands registered', (await p.evaluate(() => window.__cmds.length)) === 3);
 ok('one panel only', (await p.locator('.rv-panel').count()) === 1);
+ok('panel sits below Linked References', await p.evaluate(() =>
+  document.querySelector('.rm-reference-main').compareDocumentPosition(document.querySelector('.rv-panel')) & Node.DOCUMENT_POSITION_FOLLOWING));
+
+// unfold the matching note inline, and follow a link inside it
+ok('counterpart folded by default', await p.locator('.rv-preview').evaluate((e) => e.hidden));
+await p.locator('.rv-unfold').click();
+await p.waitForFunction(() => document.querySelector('.rv-preview')?.textContent.includes('Kickoff with'), null, { timeout: 5000 });
+ok('unfold shows the note inline', await p.locator('.rv-preview').evaluate((e) => !e.hidden && !!e.querySelector('h2')));
+await p.locator('.rv-preview .rv-wl', { hasText: 'Hiring neural' }).click();
+await p.waitForSelector('.rv-viewer');
+ok('link in unfolded note opens viewer', (await p.locator('.rv-viewer h3').textContent()) === 'Hiring neural');
+await p.keyboard.press('Escape');
 
 // live update: add a note on disk, expect it in the panel without a rescan
 await p.evaluate(async () => {
@@ -81,6 +93,7 @@ await p.evaluate(async () => {
 });
 const live = await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('Fresh idea'), null, { timeout: 5000 }).then(() => true, () => false);
 ok('live update via FileSystemObserver', live);
+ok('unfolded note stays open after live update', await p.locator('.rv-preview').evaluate((e) => !e.hidden && e.textContent.includes('Kickoff with')));
 
 // viewer opens at the linked line
 await p.locator('.rv-line', { hasText: 'see Project Alpha' }).click();

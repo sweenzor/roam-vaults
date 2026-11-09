@@ -1,9 +1,9 @@
 # Roam Vaults
 
 See your Obsidian notes next to your Roam pages. Roam Vaults adds a **Vault references** section
-above Linked References on every Roam page. It lists:
+below Linked References on every Roam page. It lists:
 
-- **This page in the vault:** the vault note that is this page. A match can be the same name, the same
+- **This page in the vault:** the vault note that is this page. Click ▸ to unfold it and read it right there. A match can be the same name, the same
   name in different case, an alias, a folder path (Roam `A/B` ↔ `A/B.md`) or a daily note. If more than one
   note matches, all of them are shown.
 - **Linked from the vault:** vault notes that link to that note, or contain `[[This Page]]` even when no

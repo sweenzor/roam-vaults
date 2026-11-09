@@ -49,6 +49,11 @@ const CSS = `
 .rv-viewer-body .rv-props{font-size:12px;color:#5c7080;background:#f5f8fa;border-radius:4px;padding:6px 10px;margin:8px 0}
 .rv-viewer-body .rv-hl{background:#fff3b0;border-radius:3px}
 .rv-viewer-body blockquote{border-left:3px solid #d8e1e8;margin:4px 0;padding-left:10px;color:#5c7080}
+.rv-unfold{width:14px;display:inline-block;cursor:pointer;color:#8a8a99;user-select:none;transition:transform .1s}
+.rv-unfold:hover{color:#5c3bc4}
+.rv-unfold.rv-open{transform:rotate(90deg)}
+.rv-viewer-body.rv-preview{margin:4px 0 8px 14px;padding:4px 12px 8px;border-left:2px solid #e5e5ea;background:#fff;border-radius:0 4px 4px 0;max-height:480px;overflow:auto}
+.bp3-dark .rv-viewer-body.rv-preview{background:transparent;color:#ddd}
 .bp3-dark .rv-panel{background:rgba(138,92,246,.08)}
 .bp3-dark .rv-line{color:#ccc}
 `;
@@ -98,7 +103,12 @@ export interface PanelActions {
   reconnect(): void;
   view(path: string, line?: number): void;
   openInObsidian(path: string): void;
+  read(path: string): Promise<string>;
+  resolve(target: string, from: string): Promise<string | null>;
 }
+
+/** Counterpart notes the user unfolded. Kept across re-renders (live updates, navigation). */
+const unfolded = new Set<string>();
 
 const COLLAPSE_KEY = 'roam-vaults:collapsed';
 const collapsed = () => { try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; } };
@@ -148,10 +158,25 @@ function resultBody(r: PageResult, act: PanelActions): HTMLElement {
     const ambiguous = r.counterparts.length > 1;
     out.append(h('div', { class: 'rv-sec' },
       h('div', { class: 'rv-sec-title' }, ambiguous ? `This page in the vault (${r.counterparts.length} candidates)` : 'This page in the vault'),
-      ...r.counterparts.map((c) => h('div', { class: 'rv-row' },
-        noteLink(c.path, c.title), folder(c.path),
-        h('span', { class: 'rv-badge' + (c.how === 'case' ? ' rv-warn' : '') }, c.label),
-        obsidian(c.path)))));
+      ...r.counterparts.map((c) => {
+        const preview = h('div', { class: 'rv-viewer-body rv-preview' });
+        const caret = h('span', { class: 'rv-unfold', role: 'button', 'aria-expanded': 'false', title: 'Show this note here' }, '▸');
+        const set = (open: boolean) => {
+          caret.classList.toggle('rv-open', open);
+          caret.setAttribute('aria-expanded', String(open));
+          caret.title = open ? 'Hide this note' : 'Show this note here';
+          preview.hidden = !open;
+          if (open) { unfolded.add(c.path); if (!preview.childNodes.length) loadPreview(preview, c.path, act); } else unfolded.delete(c.path);
+        };
+        caret.addEventListener('click', () => set(preview.hidden));
+        set(unfolded.has(c.path));
+        return h('div', {},
+          h('div', { class: 'rv-row' },
+            caret, noteLink(c.path, c.title), folder(c.path),
+            h('span', { class: 'rv-badge' + (c.how === 'case' ? ' rv-warn' : '') }, c.label),
+            obsidian(c.path)),
+          preview);
+      })));
   }
   if (r.backlinks.length) {
     out.append(h('div', { class: 'rv-sec' },
@@ -167,6 +192,26 @@ function resultBody(r: PageResult, act: PanelActions): HTMLElement {
       ...r.tagged.map((t) => h('div', { class: 'rv-row' }, noteLink(t.path, t.title), folder(t.path), h('span', { class: 'rv-badge' }, `#${t.tag}`)))));
   }
   return out;
+}
+
+async function loadPreview(el: HTMLElement, path: string, act: PanelActions) {
+  el.append('Loading…');
+  try {
+    el.replaceChildren(renderMarkdown(await act.read(path)));
+    wireLinks(el, path, (to) => act.view(to), act.resolve);
+  } catch (e) {
+    el.replaceChildren(`Couldn't read this note: ${(e as Error).message}`);
+  }
+}
+
+/** Make [[links]] in rendered note text open their target note (in the viewer). */
+function wireLinks(el: HTMLElement, from: string, open: (to: string) => void, resolve: (t: string, f: string) => Promise<string | null>) {
+  el.querySelectorAll<HTMLElement>('.rv-wl[data-target]').forEach((a) => {
+    a.addEventListener('click', async () => {
+      const to = await resolve(a.dataset.target!, from);
+      if (to) open(to); else { a.classList.add('rv-missing'); a.title = 'No such note in the vault'; }
+    });
+  });
 }
 
 function snippetEl(text: string, onclick: () => void, line: number) {
@@ -202,12 +247,7 @@ export async function openViewer(path: string, line: number | undefined, act: Vi
   try {
     const text = await act.read(path);
     body.replaceChildren(renderMarkdown(text, line));
-    body.querySelectorAll<HTMLElement>('.rv-wl[data-target]').forEach((a) => {
-      a.addEventListener('click', async () => {
-        const to = await act.resolve(a.dataset.target!, path);
-        if (to) openViewer(to, undefined, act); else { a.classList.add('rv-missing'); a.title = 'No such note in the vault'; }
-      });
-    });
+    wireLinks(body, path, (to) => openViewer(to, undefined, act), act.resolve);
     body.querySelector('.rv-hl')?.scrollIntoView({ block: 'center' });
   } catch (e) {
     body.replaceChildren(`Couldn't read this note: ${(e as Error).message}`);
