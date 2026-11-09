@@ -23,8 +23,14 @@ const STYLES = `
 .rv-group-head{align-items:center;gap:2px;flex-wrap:wrap}
 .rv-group-caret{cursor:pointer}
 .rv-group-title{margin-right:8px}
-.rv-note{cursor:pointer;color:#106ba3}
+.rv-note{cursor:pointer;color:rgb(51,122,183);font-size:16px;line-height:24px}
 .rv-note:hover{text-decoration:underline}
+.rv-panel .rv-wl,.rv-viewer .rv-wl{color:rgb(16,107,163);cursor:pointer}
+.rv-panel .rv-wl:hover,.rv-viewer .rv-wl:hover,.rv-panel .rv-tag:hover,.rv-viewer .rv-tag:hover{text-decoration:underline}
+.rv-br{color:rgb(167,182,194)}
+.rv-panel .rv-tag,.rv-viewer .rv-tag,.rv-tagref{color:rgb(167,182,194);cursor:pointer}
+.rv-tagref{font-size:14px;margin-right:8px}
+.bp3-dark .rv-panel .rv-wl,.bp3-dark .rv-viewer .rv-wl{color:rgb(72,175,240)}
 .rv-path{color:#a7b6c2;font-size:12px;margin-right:8px}
 .rv-badge{font-size:11px;border-radius:3px;padding:0 5px;margin-right:8px;background:#ebf1f5;color:#5c7080}
 .rv-badge.rv-warn{background:#fdf0d5;color:#8a5a00}
@@ -34,10 +40,11 @@ const STYLES = `
 .rv-content{margin-left:20px}
 .rv-block{display:flex;align-items:flex-start;padding:2px 0;cursor:pointer;border-radius:3px}
 .rv-block:hover{background:rgba(16,107,163,.05)}
-.rv-bullet{flex:0 0 auto;width:20px;height:24px;display:flex;align-items:center;justify-content:center}
+.rv-bullet{flex:0 0 auto;width:20px;height:28px;display:flex;align-items:center;justify-content:center}
 .rv-bullet::before{content:'';width:6px;height:6px;border-radius:50%;background:#5c7080}
-.rv-block-text{flex:1;line-height:24px;white-space:pre-wrap;word-break:break-word}
-.rv-block-text .rv-wl{color:#106ba3}.rv-block-text .rv-tag{color:#106ba3}.rv-block-text code{font-size:12px}
+.rv-block-text{flex:1;font-size:14px;line-height:21px;padding:4px 0;margin-top:-1px;color:rgb(32,43,51);white-space:pre-wrap;word-break:break-word}
+.bp3-dark .rv-block-text{color:inherit}
+.rv-block-text code{font-size:12px}
 .rv-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:30000;max-width:560px;padding:10px 14px;border-radius:6px;background:#30404d;color:#fff;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
 .rv-toast.rv-error{background:#a82a2a}
 .rv-overlay{position:fixed;inset:0;z-index:20000;background:rgba(16,22,26,.45);display:flex;align-items:center;justify-content:center}
@@ -52,9 +59,7 @@ const STYLES = `
 .rv-viewer-body code{background:#f5f8fa;padding:0 3px;border-radius:3px;font-size:12px}
 .rv-viewer-body .rv-li{padding-left:calc(var(--d,0) * 18px + 14px);position:relative}
 .rv-viewer-body .rv-li::before{content:'•';position:absolute;left:calc(var(--d,0) * 18px + 2px);color:#8a8a99}
-.rv-viewer-body .rv-wl{color:#106ba3;cursor:pointer}
 .rv-viewer-body .rv-wl.rv-missing{color:#8a8a99;cursor:default}
-.rv-viewer-body .rv-tag{color:#5c3bc4}
 .rv-viewer-body .rv-props{font-size:12px;color:#5c7080;background:#f5f8fa;border-radius:4px;padding:6px 10px;margin:8px 0}
 .rv-viewer-body .rv-hl{background:#fff3b0;border-radius:3px}
 .rv-viewer-body blockquote{border-left:3px solid #d8e1e8;margin:4px 0;padding-left:10px;color:#5c7080}
@@ -211,7 +216,7 @@ function resultBody(vid: string, r: PageResult, act: SectionActions): HTMLElemen
 
   // A note shows once: a tagged note that also links here gets the tag as a badge.
   const tags = new Map(r.tagged.map((t) => [t.path, t.tag]));
-  const tagBadge = (path: string) => { const t = tags.get(path); tags.delete(path); return t ? h('span', { class: 'rv-badge' }, `#${t}`) : null; };
+  const tagBadge = (path: string) => { const t = tags.get(path); tags.delete(path); return t ? h('span', { class: 'rv-tagref', title: 'Tagged with this page' }, `#${t}`) : null; };
   for (const c of r.counterparts)
     out.append(group('page', c.path, c.title, false,
       [h('span', { class: 'rv-badge' + (c.how === 'case' ? ' rv-warn' : ''), title: 'This note is this page' }, `this page · ${c.label}`), tagBadge(c.path)],

@@ -66,13 +66,14 @@ await p.evaluate(async () => {
 });
 
 const text = async () => p.locator('.rv-panel').textContent();
-await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('see Project Alpha'), null, { timeout: 10000 }).catch(async (e) => { console.log('panel now:', await p.evaluate(() => document.querySelector('.rv-panel')?.outerHTML?.slice(0, 600) ?? document.body.innerHTML.slice(0, 800))); throw e; });
+await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('see [[Project Alpha]]'), null, { timeout: 10000 }).catch(async (e) => { console.log('panel now:', await p.evaluate(() => document.querySelector('.rv-panel')?.outerHTML?.slice(0, 600) ?? document.body.innerHTML.slice(0, 800))); throw e; });
 console.log('--- panel ---\n' + await text());
 const checks = [];
 const ok = (name, cond) => { checks.push([name, !!cond]); };
 const t1 = await text();
 ok('counterpart shown', t1.includes('this page · same name'));
-ok('backlink snippet shown', t1.includes('see Project Alpha for context'));
+ok('backlink snippet shown', t1.includes('see [[Project Alpha]] for context'));
+ok('wikilinks keep faint brackets like Roam', (await p.locator('.rv-block .rv-br').count()) > 0 && (await p.locator('.rv-block', { hasText: 'the alpha project' }).locator('.rv-br').count()) === 0);
 ok('daily backlink shown', t1.includes('2026-11-09'));
 ok('commands registered', (await p.evaluate(() => window.__cmds.length)) === 3);
 ok('one panel only', (await p.locator('.rv-panel').count()) === 1);
@@ -101,7 +102,7 @@ ok('live update via FileSystemObserver', live);
 ok('unfolded note stays open after live update', await p.locator('.rv-preview').evaluate((e) => !e.hidden && e.textContent.includes('Kickoff with')));
 
 // viewer opens at the linked line
-await p.locator('.rv-block', { hasText: 'see Project Alpha' }).click();
+await p.locator('.rv-block', { hasText: 'see [[Project Alpha]]' }).click();
 await p.waitForSelector('.rv-viewer .rv-hl');
 ok('viewer highlights line', (await p.locator('.rv-viewer .rv-hl').textContent()).includes('see'));
 if (process.argv[2]) await p.screenshot({ path: process.argv[2].replace(/\.png$/, '-viewer.png') });

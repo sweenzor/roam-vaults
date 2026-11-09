@@ -73,7 +73,8 @@ export function inline(parent: HTMLElement, s: string) {
       a.className = 'rv-wl';
       a.dataset.target = target || '';
       a.textContent = (m[1] ? '📎 ' : '') + (alias ?? targetPart);
-      parent.append(a);
+      // Like Roam: [[Page]] keeps faint brackets; an aliased link shows only its text.
+      if (alias === null) parent.append(bracket('[['), a, bracket(']]')); else parent.append(a);
     } else if (m[4] !== undefined) {
       const href = m[4].trim().replace(/^<|>$/g, '');
       if (/^https?:\/\//i.test(href)) {
@@ -100,6 +101,13 @@ export function inline(parent: HTMLElement, s: string) {
     }
   }
   if (last < s.length) parent.append(s.slice(last));
+}
+
+function bracket(t: string) {
+  const b = document.createElement('span');
+  b.className = 'rv-br';
+  b.textContent = t;
+  return b;
 }
 
 function splitPipe(inner: string): [string, string | null] {
