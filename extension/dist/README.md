@@ -20,7 +20,6 @@ Each vault you add gets its own section. Notes are titled by their path in the v
   letter case), lists the page title as an alias, sits at the same folder path (Roam `A/B` and `A/B.md`), or
   is the daily note for the same date. If several notes match, they're all shown. Click the caret to unfold
   the note and read it in place.
-
 - **Notes that link here.** These are notes that link to the matching note, or contain `[[This Page]]` even
   when no such note exists. Links in frontmatter count too. Each linking line is shown like a Roam block.
 - **Notes tagged here.** These are notes tagged `#this-page`, shown with the tag. A Roam namespace `a/b`
