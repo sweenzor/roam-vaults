@@ -44,6 +44,7 @@ To remove one vault, hover its section header and click **Remove**. The folder i
 
 - Each vault has its own Web Worker. It walks the vault, parses every `.md` file and builds a link index. Parsed notes are cached in
   IndexedDB by path, size and modification time, so later starts only re-read changed files.
+  Removing a vault deletes its cache.
 - `FileSystemObserver` watches the folder, so edits made in Obsidian show up within a second.
 - Daily notes use the format in `.obsidian/daily-notes.json`, falling back to `YYYY-MM-DD`.
 
