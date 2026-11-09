@@ -9,7 +9,7 @@ folders of Markdown notes, that are about the page you're on or link to it.
 It only reads your vault. Nothing from the vault is written to your Roam graph, and nothing is sent over the
 network.
 
-![External Vault References on a Roam page, listing notes from two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/one-section.png)
+![External Vault References on a Roam page, listing notes from two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults/main/docs/images/one-section.png)
 
 ## What's an Obsidian-style vault?
 
@@ -42,12 +42,12 @@ kinds of notes, in this order:
 - **Notes tagged here.** These are notes tagged `#this-page`, shown with the tag. A Roam namespace `a/b`
   matches the nested tag `#a/b`.
 
-![The matching note, work-vault/Planning, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/unfolded-note.png)
+![The matching note, work-vault/Planning, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/main/docs/images/unfolded-note.png)
 
 Click a note title or line to read the whole note in Roam. Links between notes work inside the viewer.
 If you use Obsidian, click **Open in Obsidian** in the viewer to jump to the note there.
 
-![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/note-viewer.png)
+![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/main/docs/images/note-viewer.png)
 
 The section updates by itself. When you edit a note in Obsidian or any other editor, the change shows up in Roam within about a
 second.
@@ -63,7 +63,7 @@ second.
 ## Getting started
 
 1. Install **Vaults** from Roam Depot.
-2. Open **Settings → Roam Depot → External Vault References**.
+2. Open **Settings → Roam Depot → Vaults**.
 3. Click **Add vault folder**, choose your vault folder, and allow access when asked.
 
 Your notes then show up in an **External Vault References** section at the bottom of each page. The section
@@ -80,7 +80,7 @@ You can't type a folder path. Roam can only read a folder you pick in the system
 
 ### Managing vaults
 
-Everything is in **Settings → Roam Depot → External Vault References**:
+Everything is in **Settings → Roam Depot → Vaults**:
 
 - **Add vault folder** adds another vault. Notes from all your vaults appear in the same section on each
   page, each title starting with its vault's name.
