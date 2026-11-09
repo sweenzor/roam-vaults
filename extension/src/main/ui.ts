@@ -31,17 +31,13 @@ const STYLES = `
 .rv-panel .rv-tag,.rv-viewer .rv-tag,.rv-tagref{color:rgb(167,182,194);cursor:pointer}
 .rv-tagref{font-size:14px;margin-right:8px}
 .bp3-dark .rv-panel .rv-wl,.bp3-dark .rv-viewer .rv-wl{color:rgb(72,175,240)}
-.rv-path{color:#a7b6c2;font-size:12px;margin-right:8px}
-.rv-badge{font-size:11px;border-radius:3px;padding:0 5px;margin-right:8px;background:#ebf1f5;color:#5c7080}
-.rv-badge.rv-warn{background:#fdf0d5;color:#8a5a00}
 .rv-link{font-size:12px;color:#a7b6c2;cursor:pointer;visibility:hidden}
 .rv-group-head:hover .rv-link{visibility:visible}
 .rv-link:hover{color:#106ba3;text-decoration:underline}
 .rv-content{margin-left:20px}
-.rv-block{display:flex;align-items:flex-start;padding:2px 0;cursor:pointer;border-radius:3px}
-.rv-block:hover{background:rgba(16,107,163,.05)}
+.rv-block{display:flex;align-items:flex-start;cursor:pointer}
 .rv-bullet{flex:0 0 auto;width:20px;height:28px;display:flex;align-items:center;justify-content:center}
-.rv-bullet::before{content:'';width:6px;height:6px;border-radius:50%;background:#5c7080}
+.rv-bullet::before{content:'';width:6px;height:6px;border-radius:50%;background:rgb(57,75,89)}
 .rv-block-text{flex:1;font-size:14px;line-height:21px;padding:4px 0;margin-top:-1px;color:rgb(32,43,51);white-space:pre-wrap;word-break:break-word}
 .bp3-dark .rv-block-text{color:inherit}
 .rv-block-text code{font-size:12px}
@@ -63,10 +59,10 @@ const STYLES = `
 .rv-viewer-body .rv-props{font-size:12px;color:#5c7080;background:#f5f8fa;border-radius:4px;padding:6px 10px;margin:8px 0}
 .rv-viewer-body .rv-hl{background:#fff3b0;border-radius:3px}
 .rv-viewer-body blockquote{border-left:3px solid #d8e1e8;margin:4px 0;padding-left:10px;color:#5c7080}
-.rv-viewer-body.rv-preview{margin:2px 0 4px;padding:2px 12px 4px;border-left:1px solid #e1e8ed;max-height:480px;overflow:auto}
+.rv-viewer-body.rv-preview{padding:4px 12px 6px 20px;max-height:480px;overflow:auto}
 .rv-viewer-body h2{font-size:20px}.rv-viewer-body h3{font-size:17px}.rv-viewer-body h4,.rv-viewer-body h5,.rv-viewer-body h6{font-size:15px}
 .rv-preview h2,.rv-preview h3,.rv-preview h4{margin:8px 0 4px;font-weight:600}
-.bp3-dark .rv-viewer-body.rv-preview{background:transparent;color:#ddd}
+.bp3-dark .rv-viewer-body.rv-preview{color:inherit}
 .bp3-dark .rv-sec-head strong,.bp3-dark .rv-meta{color:#5c7080}
 `;
 
@@ -191,8 +187,7 @@ function section(v: PanelVault): HTMLElement {
 
 function resultBody(vid: string, r: PageResult, act: SectionActions): HTMLElement {
   const out = h('div', { class: 'rv-groups' });
-  const folder = (path: string) => { const i = path.lastIndexOf('/'); return i < 0 ? null : h('span', { class: 'rv-path' }, path.slice(0, i)); };
-  /** One note: caret + title (+ folder, badges, Obsidian link); content shows when open. */
+  /** One note: caret + vault path as a namespaced title (+ tag, Obsidian link); content shows when open. */
   const group = (key: string, path: string, title: string, defOpen: boolean, extras: (Node | null)[], content: () => HTMLElement) => {
     const k = `${vid}\n${key}\n${path}`;
     const box = h('div', { class: 'rv-content' });
@@ -207,19 +202,20 @@ function resultBody(vid: string, r: PageResult, act: SectionActions): HTMLElemen
     return h('div', { class: 'rv-group' },
       h('div', { class: 'flex-h-box rv-group-head' }, c,
         h('div', { class: 'rm-ref-page-view-title rv-group-title' },
-          h('span', { class: 'rv-note', title: path, onclick: () => act.view(path) }, title)),
-        folder(path), ...extras,
+          h('span', { class: 'rv-note', title: path, onclick: () => act.view(path) }, path.replace(/\.md$/i, ''))),
+        ...extras,
         h('span', { class: 'rv-link', title: 'Open this note in Obsidian', onclick: () => act.openInObsidian(path) }, 'Open in Obsidian')),
       box);
   };
-  const preview = (path: string) => () => { const el = h('div', { class: 'rv-viewer-body rv-preview' }); loadPreview(el, path, act); return el; };
+  // rm-reference-item: Roam's own grey reference background.
+  const preview = (path: string) => () => { const el = h('div', { class: 'rv-viewer-body rv-preview rm-reference-item' }); loadPreview(el, path, act); return el; };
 
   // A note shows once: a tagged note that also links here gets the tag as a badge.
   const tags = new Map(r.tagged.map((t) => [t.path, t.tag]));
   const tagBadge = (path: string) => { const t = tags.get(path); tags.delete(path); return t ? h('span', { class: 'rv-tagref', title: 'Tagged with this page' }, `#${t}`) : null; };
   for (const c of r.counterparts)
     out.append(group('page', c.path, c.title, false,
-      [h('span', { class: 'rv-badge' + (c.how === 'case' ? ' rv-warn' : ''), title: 'This note is this page' }, `this page · ${c.label}`), tagBadge(c.path)],
+      [tagBadge(c.path)],
       preview(c.path)));
   for (const b of r.backlinks)
     out.append(group('links', b.path, b.title, true, [tagBadge(b.path)],
@@ -233,7 +229,7 @@ function resultBody(vid: string, r: PageResult, act: SectionActions): HTMLElemen
 function blockEl(text: string, onclick: () => void, line: number) {
   const t = h('div', { class: 'rv-block-text' });
   if (text) inline(t, text); else t.append('(link)');
-  return h('div', { class: 'rv-block', title: `Line ${line + 1}`, onclick }, h('span', { class: 'rv-bullet' }), t);
+  return h('div', { class: 'rv-block rm-reference-item', title: `Line ${line + 1}`, onclick }, h('span', { class: 'rv-bullet' }), t);
 }
 
 async function loadPreview(el: HTMLElement, path: string, act: SectionActions) {
