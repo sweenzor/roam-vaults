@@ -1,15 +1,30 @@
 # Vaults
 
-See your Obsidian notes next to your Roam pages.
+See notes from your Obsidian-style vaults in your Roam graph.
 
 Vaults adds an **External Vault References** section to every Roam page. It sits below Linked and
-Unlinked References and looks like them. It lists the notes in a local Markdown folder, such as an Obsidian
-vault, that are about the page you're on or link to it.
+Unlinked References and looks like them. It lists the notes in your Obsidian-style vaults, meaning local
+folders of Markdown notes, that are about the page you're on or link to it.
 
 It only reads your vault. Nothing from the vault is written to your Roam graph, and nothing is sent over the
 network.
 
 ![External Vault References on a Roam page, listing notes from two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/one-section.png)
+
+## What's an Obsidian-style vault?
+
+A vault is just a folder of Markdown (`.md`) files on your computer, with subfolders, that link to each
+other. [Obsidian](https://obsidian.md) made the idea popular. See
+[How Obsidian stores data](https://help.obsidian.md/data-storage) for what a vault is, and
+[Internal links](https://help.obsidian.md/links) and
+[Obsidian Flavored Markdown](https://help.obsidian.md/obsidian-flavored-markdown) for the link and tag
+syntax Vaults understands. You don't need Obsidian installed: any folder of Markdown notes works.
+
+That includes **Open Knowledge Format (OKF)** bundles. [OKF](https://github.com/GoogleCloudPlatform/open-knowledge-format)
+is an open format from Google Cloud for knowledge kept as plain Markdown files with YAML frontmatter
+([spec](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md)). OKF uses standard
+Markdown links, including bundle-absolute ones like `[Customers](/tables/customers.md)`, and Vaults follows
+those as well as `[[wikilinks]]`.
 
 ## What it shows
 
@@ -30,11 +45,11 @@ kinds of notes, in this order:
 ![The matching note, work-vault/Planning, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/unfolded-note.png)
 
 Click a note title or line to read the whole note in Roam. Links between notes work inside the viewer.
-To jump to a note in Obsidian, click **Open in Obsidian** in the viewer.
+If you use Obsidian, click **Open in Obsidian** in the viewer to jump to the note there.
 
 ![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/note-viewer.png)
 
-The section updates by itself. When you edit a note in Obsidian, the change shows up in Roam within about a
+The section updates by itself. When you edit a note in Obsidian or any other editor, the change shows up in Roam within about a
 second.
 
 ## Requirements
@@ -42,18 +57,18 @@ second.
 - **Roam desktop app** (tested on macOS). Roam in Chrome or Edge should also work, but the browser asks you to
   allow folder access again on each visit unless you choose "Allow on every visit". Other browsers and
   Roam's mobile apps can't read local folders (see [Mobile](#mobile)).
-- A folder of Markdown (`.md`) files. Obsidian vaults work best: daily-note formats, aliases and tags are
-  read the way Obsidian reads them.
+- A folder of Markdown (`.md`) files, such as an Obsidian vault or an OKF bundle. Obsidian vaults work
+  best: daily-note formats, aliases and tags are read the way Obsidian reads them.
 
 ## Getting started
 
 1. Install **Vaults** from Roam Depot.
-2. Open any page. At the bottom, in the **External Vault References** section, click **Add vault folder**.
-   You can also open the command palette (Cmd+P or Ctrl+P) and run
-   **External Vault References: Add vault folder**.
-3. Choose your vault folder and allow access when asked.
+2. Open **Settings → Roam Depot → External Vault References**.
+3. Click **Add vault folder**, choose your vault folder, and allow access when asked.
 
-The first scan of a large vault takes a few seconds. After that, only changed files are read again.
+Your notes then show up in an **External Vault References** section at the bottom of each page. The section
+only appears once you've added a vault. The first scan of a large vault takes a few seconds. After that,
+only changed files are read again.
 
 ### Choosing the right folder
 
@@ -61,26 +76,20 @@ Choose the vault folder itself, such as `Documents/My Vault`. Don't choose `Docu
 `Downloads` or your home folder. macOS protects those folders, and Roam can't open them. If that happens,
 the extension tells you, and you need to quit and reopen Roam before you try again.
 
-### Adding more than one vault
+You can't type a folder path. Roam can only read a folder you pick in the system's folder dialog.
 
-Hover the **External Vault References** header and click **Add vault**, or run
-**External Vault References: Add vault folder** again. Notes from all your vaults appear in the same section,
-each title starting with its vault's name.
+### Managing vaults
 
-### Removing a vault
+Everything is in **Settings → Roam Depot → External Vault References**:
 
-Open the command palette and run **External Vault References: Remove vault "name"**. There's one such
-command for each vault. To remove every vault at once, run **External Vault References: Remove all vaults**. Removing a vault makes Roam forget the folder and deletes
-its cache. Your files aren't touched.
+- **Add vault folder** adds another vault. Notes from all your vaults appear in the same section on each
+  page, each title starting with its vault's name.
+- Each vault shows its status, such as its note count, "Indexing" or "Needs permission".
+- **Remove** forgets that vault on this computer and deletes its cache. Your files aren't touched.
+- **Reconnect** appears when Roam needs your permission again to read a vault.
+- **Rescan** reads every vault again. Only changed files are parsed.
 
-## Commands
-
-| Command | What it does |
-|---|---|
-| External Vault References: Add vault folder | Adds a vault. Also on hover in the section header. |
-| External Vault References: Rescan vaults | Reads every vault again. Only changed files are parsed. |
-| External Vault References: Remove vault "name" | Forgets that vault and deletes its cache. One command per vault. |
-| External Vault References: Remove all vaults | Forgets every vault on this computer. |
+Vaults adds no commands to the command palette.
 
 ## Privacy
 
@@ -109,7 +118,7 @@ snapshot for a vault you wouldn't want shared that way.
 ## Limits in this version
 
 - Matching uses the exact rules above. Fuzzy or "similar title" matches aren't shown yet.
-- Notes are shown as read-only previews. Edit them in Obsidian.
+- Notes are shown as read-only previews. Edit them in Obsidian or your usual editor.
 - Only `.md` files are read. Canvas files, PDFs and attachments are skipped.
 
 ## Feedback and source

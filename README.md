@@ -1,14 +1,14 @@
-# roam-vaults
+# Vaults for Roam Research
 
-A planned Roam Research extension for the Roam desktop app. It will show local markdown vaults
-(Obsidian vaults, Open Knowledge Format bundles, and similar) inside Roam:
+See notes from your Obsidian-style vaults in your Roam graph.
 
-- browse vault notes;
-- on any Roam page, show which vault notes correspond to it or link to it, kept separate from
-  Roam's own references.
+Vaults is a Roam Research extension. An Obsidian-style vault is a local folder of linked Markdown notes,
+such as an Obsidian vault or an Open Knowledge Format (OKF) bundle. On any Roam page, Vaults shows which
+vault notes match the page or link to it, in an **External Vault References** section kept separate from
+Roam's own references. You can read any note in Roam.
 
-**Status:** first working version (Phase 1 MVP) in [`extension/`](extension/): one or more Obsidian vaults, an
-"External Vault References" section on every page (one per vault), live updates and a read-only note viewer.
+**Status:** version 0.1.0 is in [`extension/`](extension/): one or more vaults in a single External Vault
+References section, live updates and a read-only note viewer.
 
 - [`docs/FEASIBILITY.md`](docs/FEASIBILITY.md): findings, risks, proposed architecture and roadmap.
 - [`extension/`](extension/): the extension. Its [README](extension/README.md) is the user guide shown in

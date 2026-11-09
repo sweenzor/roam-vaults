@@ -35,7 +35,7 @@ Roam Depot tab.
 - Parsed notes are cached in IndexedDB by path, size and modification time, so later starts only re-read
   changed files. Removing a vault deletes its cache.
 - Folder handles are kept in this device's IndexedDB, never in Roam settings, which sync through the graph.
-- `FileSystemObserver` watches the folder, so edits made in Obsidian show up within a second.
+- `FileSystemObserver` watches the folder, so edits made in Obsidian or any editor show up within a second.
 - Daily notes use the format in `.obsidian/daily-notes.json`, falling back to `YYYY-MM-DD`.
 - CSS classes are prefixed `rv-`, and every DOM node the extension adds carries a data attribute, so
   `onunload` can remove all of them.
