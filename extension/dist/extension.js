@@ -348,6 +348,7 @@ var STYLES = `
 .rv-group-title{margin-right:8px}
 .rv-note{cursor:pointer;color:rgb(51,122,183);font-size:16px;line-height:24px}
 .rv-note:hover{text-decoration:underline}
+.rv-vault{color:#8a9ba8}
 .rv-panel .rv-wl,.rv-viewer .rv-wl{color:rgb(16,107,163);cursor:pointer}
 .rv-panel .rv-wl:hover,.rv-viewer .rv-wl:hover,.rv-panel .rv-tag:hover,.rv-viewer .rv-tag:hover{text-decoration:underline}
 .rv-br{color:rgb(167,182,194)}
@@ -416,35 +417,74 @@ function removeToast() {
   toastEl?.remove();
   clearTimeout(toastTimer);
 }
-var COLLAPSE_KEY = "roam-vaults:collapsed:";
-var isCollapsed = (id) => {
+var COLLAPSE_KEY = "roam-vaults:collapsed";
+var isCollapsed = () => {
   try {
-    return localStorage.getItem(COLLAPSE_KEY + id) === "1";
+    return localStorage.getItem(COLLAPSE_KEY) === "1";
   } catch {
     return false;
   }
 };
 var groupOpen = /* @__PURE__ */ new Map();
 var caret = (open2, extra = "") => h("span", { class: `bp3-icon-standard bp3-icon-caret-down rm-caret ${open2 ? "rm-caret-open" : "rm-caret-closed"} ${extra}` });
-function renderPanel(el, vaults2, choose) {
+function renderPanel(el, vaults2, add) {
   el.className = "rv-panel";
+  const tool = (label, title, fn) => h("button", { class: "bp3-button bp3-minimal bp3-small rv-tool", title, onclick: (e) => {
+    e.stopPropagation();
+    fn();
+  } }, label);
   if (!vaults2.length) {
     el.replaceChildren(h(
       "div",
       { class: "rv-sec" },
-      sectionHead(null, "External Vault References", ""),
-      h(
+      sectionHead("External Vault References", ""),
+      h("div", { class: "rv-sec-body" }, h(
         "div",
         { class: "rv-empty" },
         "Add a folder of Markdown notes, such as an Obsidian vault, to see its notes about this page. ",
-        h("button", { class: "bp3-button bp3-small", onclick: choose }, "Add vault folder")
-      )
+        h("button", { class: "bp3-button bp3-small", onclick: add }, "Add vault folder")
+      ))
     ));
     return;
   }
-  el.replaceChildren(...vaults2.map((v) => section(v)));
+  const notices = [];
+  const ready = [];
+  let n = 0, notLive = false;
+  for (const v of vaults2) {
+    const s = v.state;
+    if (s.kind === "permission") notices.push(h(
+      "div",
+      { class: "rv-empty" },
+      `Roam needs permission to read "${v.name}" again. `,
+      h("button", { class: "bp3-button bp3-small", onclick: v.act.reconnect }, "Reconnect")
+    ));
+    else if (s.kind === "indexing") notices.push(h("div", { class: "rv-empty" }, `Reading "${v.name}"\u2026 ${s.detail}`));
+    else if (s.kind === "error") notices.push(h("div", { class: "rv-empty" }, `Couldn't read "${v.name}": ${s.detail}`));
+    else {
+      if (!s.live) notLive = true;
+      if (s.result) {
+        ready.push({ v, r: s.result });
+        n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
+      }
+    }
+  }
+  const body = h("div", { class: "rv-sec-body" }, ...notices);
+  if (n) body.append(resultBody(ready, vaults2.length > 1));
+  else if (!notices.length) body.append(h("div", { class: "rv-empty" }, "No vault notes match or link to this page."));
+  const collapsed = isCollapsed();
+  el.replaceChildren(h(
+    "div",
+    { class: "rv-sec" + (collapsed ? " rv-collapsed" : "") },
+    sectionHead(
+      `${n ? `${n} ` : ""}External Vault References`,
+      notLive ? "not live" : "",
+      !collapsed,
+      [tool("Add vault", "Add another vault folder", add)]
+    ),
+    body
+  ));
 }
-function sectionHead(v, label, meta, open2 = true, tools = []) {
+function sectionHead(label, meta, open2 = true, tools = []) {
   const head = h(
     "div",
     { class: "rv-sec-head" },
@@ -454,64 +494,24 @@ function sectionHead(v, label, meta, open2 = true, tools = []) {
     h("span", { class: "rv-spacer" }),
     ...tools
   );
-  if (v) head.addEventListener("click", (e) => {
+  head.addEventListener("click", (e) => {
     if (e.target.closest("button")) return;
-    const now = !isCollapsed(v.id);
+    const now = !isCollapsed();
     try {
-      localStorage.setItem(COLLAPSE_KEY + v.id, now ? "1" : "0");
+      localStorage.setItem(COLLAPSE_KEY, now ? "1" : "0");
     } catch {
     }
-    document.querySelectorAll(`.rv-sec[data-vault="${CSS.escape(v.id)}"]`).forEach((s) => {
+    document.querySelectorAll(`.rv-panel[${ATTR}] .rv-sec`).forEach((s) => {
       s.classList.toggle("rv-collapsed", now);
       s.querySelector(".rv-head-caret")?.classList.replace(now ? "rm-caret-open" : "rm-caret-closed", now ? "rm-caret-closed" : "rm-caret-open");
     });
   });
   return head;
 }
-function section(v) {
-  const s = v.state, act = v.act;
-  const tool = (label, title, fn) => h("button", { class: "bp3-button bp3-minimal bp3-small rv-tool", title, onclick: (e) => {
-    e.stopPropagation();
-    fn();
-  } }, label);
-  let count = "", meta = v.name, body;
-  if (s.kind === "permission") {
-    body = h(
-      "div",
-      { class: "rv-empty" },
-      `Roam needs permission to read "${v.name}" again. `,
-      h("button", { class: "bp3-button bp3-small", onclick: act.reconnect }, "Reconnect")
-    );
-  } else if (s.kind === "indexing") {
-    meta += ` \xB7 indexing ${s.detail}`;
-    body = h("div", { class: "rv-empty" }, "Reading the vault\u2026");
-  } else if (s.kind === "error") {
-    body = h("div", { class: "rv-empty" }, `Couldn't read this vault: ${s.detail}`);
-  } else {
-    const r = s.result;
-    const n = r ? new Set([...r.counterparts, ...r.backlinks, ...r.tagged].map((x) => x.path)).size : 0;
-    count = `${n} `;
-    if (!s.live) meta += " \xB7 not live";
-    body = r && n ? resultBody(v.id, r, act) : h("div", { class: "rv-empty" }, "No notes in this vault match or link to this page.");
-  }
-  const collapsed = isCollapsed(v.id);
-  return h(
-    "div",
-    { class: "rv-sec" + (collapsed ? " rv-collapsed" : ""), "data-vault": v.id },
-    sectionHead(
-      v,
-      `${count}External Vault References`,
-      meta,
-      !collapsed,
-      [tool("Remove", `Stop showing "${v.name}" in this graph on this device`, act.remove)]
-    ),
-    h("div", { class: "rv-sec-body" }, body)
-  );
-}
-function resultBody(vid, r, act) {
+function resultBody(list, showVault) {
   const out = h("div", { class: "rv-groups" });
-  const group = (key, path, title, defOpen, extras, content) => {
-    const k = `${vid}
+  const group = (v, key, path, defOpen, extras, content) => {
+    const k = `${v.id}
 ${key}
 ${path}`;
     const box = h("div", { class: "rv-content" });
@@ -538,44 +538,42 @@ ${path}`;
         h(
           "div",
           { class: "rm-ref-page-view-title rv-group-title" },
-          h("span", { class: "rv-note", title: path, onclick: () => act.view(path) }, path.replace(/\.md$/i, ""))
+          h(
+            "span",
+            { class: "rv-note", title: `${v.name}/${path}`, onclick: () => v.act.view(path) },
+            showVault ? h("span", { class: "rv-vault" }, `${v.name}/`) : null,
+            path.replace(/\.md$/i, "")
+          )
         ),
         ...extras
       ),
       box
     );
   };
-  const preview = (path) => () => {
+  const preview = (v, path) => () => {
     const el = h("div", { class: "rv-viewer-body rv-preview rm-reference-item" });
-    loadPreview(el, path, act);
+    loadPreview(el, path, v.act);
     return el;
   };
-  const tags = new Map(r.tagged.map((t) => [t.path, t.tag]));
-  const tagBadge = (path) => {
-    const t = tags.get(path);
+  const tagsOf = new Map(list.map(({ v, r }) => [v, new Map(r.tagged.map((t) => [t.path, t.tag]))]));
+  const tagRef = (v, path) => {
+    const tags = tagsOf.get(v), t = tags.get(path);
     tags.delete(path);
     return t ? h("span", { class: "rv-tagref", title: "Tagged with this page" }, `#${t}`) : null;
   };
-  for (const c of r.counterparts)
+  for (const { v, r } of list) for (const c of r.counterparts)
+    out.append(group(v, "page", c.path, false, [tagRef(v, c.path)], preview(v, c.path)));
+  for (const { v, r } of list) for (const b of r.backlinks)
     out.append(group(
-      "page",
-      c.path,
-      c.title,
-      false,
-      [tagBadge(c.path)],
-      preview(c.path)
-    ));
-  for (const b of r.backlinks)
-    out.append(group(
+      v,
       "links",
       b.path,
-      b.title,
       true,
-      [tagBadge(b.path)],
-      () => h("div", {}, ...b.lines.map((l) => blockEl(l.text, () => act.view(b.path, l.line), l.line)))
+      [tagRef(v, b.path)],
+      () => h("div", {}, ...b.lines.map((l) => blockEl(l.text, () => v.act.view(b.path, l.line), l.line)))
     ));
-  for (const t of r.tagged) if (tags.has(t.path))
-    out.append(group("tag", t.path, t.title, false, [tagBadge(t.path)], preview(t.path)));
+  for (const { v, r } of list) for (const t of r.tagged) if (tagsOf.get(v).has(t.path))
+    out.append(group(v, "tag", t.path, false, [tagRef(v, t.path)], preview(v, t.path)));
   return out;
 }
 function blockEl(text, onclick, line) {
@@ -812,7 +810,18 @@ var Vault = class {
   }
 };
 var vaults = [];
-var save = () => saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn("[roam-vaults]", e));
+var palette = null;
+var removeLabels = [];
+function syncRemoveCommands() {
+  if (!palette) return;
+  removeLabels.forEach((label) => palette.removeCommand({ label }));
+  removeLabels = vaults.map((v) => `External Vault References: Remove vault "${v.id}"`);
+  vaults.forEach((v, i) => palette.addCommand({ label: removeLabels[i], callback: () => removeVault(v) }));
+}
+var save = () => {
+  syncRemoveCommands();
+  return saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn("[roam-vaults]", e));
+};
 async function addVault() {
   const h2 = await pickVaultFolder();
   if (!h2) return;
@@ -906,6 +915,12 @@ async function onload({ extensionAPI }) {
     extensionAPI.ui.commandPalette.addCommand({ label, callback });
     cleanups.push(() => extensionAPI.ui.commandPalette.removeCommand({ label }));
   }
+  palette = extensionAPI.ui.commandPalette;
+  cleanups.push(() => {
+    removeLabels.forEach((label) => palette?.removeCommand({ label }));
+    removeLabels = [];
+    palette = null;
+  });
   let frame = 0;
   const mo = new MutationObserver(() => {
     cancelAnimationFrame(frame);
@@ -921,6 +936,7 @@ async function onload({ extensionAPI }) {
   cleanups.push(() => window.removeEventListener("hashchange", onHash));
   const saved = await loadVaults().catch(() => []);
   vaults = saved.map((x) => new Vault(x.id, x.handle));
+  syncRemoveCommands();
   inject();
   await Promise.all(vaults.map((v) => v.connect(false)));
 }

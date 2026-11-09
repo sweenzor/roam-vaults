@@ -84,7 +84,16 @@ class Vault implements PanelVault {
 }
 
 let vaults: Vault[] = [];
-const save = () => saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn('[roam-vaults]', e));
+// One "Remove vault" palette command per vault, since the panel no longer has a section per vault.
+let palette: any = null;
+let removeLabels: string[] = [];
+function syncRemoveCommands() {
+  if (!palette) return;
+  removeLabels.forEach((label) => palette.removeCommand({ label }));
+  removeLabels = vaults.map((v) => `External Vault References: Remove vault "${v.id}"`);
+  vaults.forEach((v, i) => palette.addCommand({ label: removeLabels[i], callback: () => removeVault(v) }));
+}
+const save = () => { syncRemoveCommands(); return saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn('[roam-vaults]', e)); };
 
 async function addVault() {
   const h = await pickVaultFolder();
@@ -187,6 +196,8 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
     extensionAPI.ui.commandPalette.addCommand({ label, callback });
     cleanups.push(() => extensionAPI.ui.commandPalette.removeCommand({ label }));
   }
+  palette = extensionAPI.ui.commandPalette;
+  cleanups.push(() => { removeLabels.forEach((label) => palette?.removeCommand({ label })); removeLabels = []; palette = null; });
 
   let frame = 0;
   const mo = new MutationObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(inject); });
@@ -198,6 +209,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
 
   const saved = await loadVaults().catch(() => []);
   vaults = saved.map((x) => new Vault(x.id, x.handle));
+  syncRemoveCommands();
   inject();
   await Promise.all(vaults.map((v) => v.connect(false)));
 }

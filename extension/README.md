@@ -1,8 +1,9 @@
 # Roam Vaults
 
 See your Obsidian notes next to your Roam pages. Roam Vaults adds an **External Vault References** section
-below Linked and Unlinked References on every Roam page, styled like them. Each vault you add gets its own
-section, and each section lists notes from that vault, titled by their path in the vault (`Projects/Kernel meeting protocol`):
+below Linked and Unlinked References on every Roam page, styled like them. One section covers every vault you add.
+Notes are titled by their path in the vault (`Projects/Kernel meeting protocol`). With more than one vault, the
+vault name comes first (`work-vault/Projects/Kernel meeting protocol`). The section lists:
 
 - **The note that is this page**, listed first and folded. A match can be the same name, the same name in different
   case, an alias, a folder path (Roam `A/B` ↔ `A/B.md`) or a daily note. If more than one note matches, all of
@@ -34,11 +35,12 @@ tells you, and you need to quit and reopen Roam before trying again.
 
 | Command | What it does |
 |---|---|
-| External Vault References: Add vault folder | Add a vault. Each vault gets its own section |
+| External Vault References: Add vault folder | Add a vault (also on hover in the section header) |
 | External Vault References: Rescan vaults | Re-read every vault (only changed files are parsed) |
+| External Vault References: Remove vault "name" | Forget that vault and its cache on this device (one command per vault) |
 | External Vault References: Remove all vaults | Forget every vault on this device |
 
-To remove one vault, hover its section header and click **Remove**. The folder itself is untouched.
+Removing a vault never touches the folder itself.
 
 ## How it works
 
