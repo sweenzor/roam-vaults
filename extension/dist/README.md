@@ -2,14 +2,14 @@
 
 See your Obsidian notes next to your Roam pages. Roam Vaults adds an **External Vault References** section
 below Linked and Unlinked References on every Roam page, styled like them. Each vault you add gets its own
-section, and each section lists notes from that vault:
+section, and each section lists notes from that vault, titled by their path in the vault (`Projects/Kernel meeting protocol`):
 
-- **The note that is this page**, marked `this page`. A match can be the same name, the same name in different
+- **The note that is this page**, listed first and folded. A match can be the same name, the same name in different
   case, an alias, a folder path (Roam `A/B` ↔ `A/B.md`) or a daily note. If more than one note matches, all of
   them are shown. Click the caret to unfold the note and read it right there.
 - **Notes that link here:** notes that link to that note, or contain `[[This Page]]` even when no such note
   exists. Frontmatter links count too. Each linking line is shown like a Roam block.
-- **Notes tagged here:** notes tagged `#this-page`, marked with the tag. A Roam namespace `a/b` matches the
+- **Notes tagged here:** notes tagged `#this-page`, shown with the tag. A Roam namespace `a/b` matches the
   nested tag `#a/b`.
 
 Click a note title or line to read the note in Roam. Use **Open in Obsidian** (shown on hover) to jump to it there.
