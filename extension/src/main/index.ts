@@ -52,7 +52,7 @@ class Vault implements PanelVault {
   private onStatus(s: string, detail: string) {
     if (s === 'indexing') this.set({ kind: 'indexing', detail });
     else if (s === 'ready') {
-      if (/ notes$/.test(detail)) this.notes = detail;
+      if (/ notes?$/.test(detail)) this.notes = detail;
       const live = !detail.startsWith('no live updates');
       if (!live) console.warn('[roam-vaults]', this.name, detail);
       this.set({ kind: 'ready', result: null, live });
