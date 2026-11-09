@@ -12,7 +12,7 @@ section, and each section lists notes from that vault, titled by their path in t
 - **Notes tagged here:** notes tagged `#this-page`, shown with the tag. A Roam namespace `a/b` matches the
   nested tag `#a/b`.
 
-Click a note title or line to read the note in Roam. Use **Open in Obsidian** (shown on hover) to jump to it there.
+Click a note title or line to read the note in Roam. The note viewer has an **Open in Obsidian** button to jump to it there.
 
 It's read-only. Nothing from a vault is written to your Roam graph, and it makes no network requests.
 The vault folders are remembered on this device only.
@@ -44,6 +44,7 @@ To remove one vault, hover its section header and click **Remove**. The folder i
 
 - Each vault has its own Web Worker. It walks the vault, parses every `.md` file and builds a link index. Parsed notes are cached in
   IndexedDB by path, size and modification time, so later starts only re-read changed files.
+  Removing a vault deletes its cache.
 - `FileSystemObserver` watches the folder, so edits made in Obsidian show up within a second.
 - Daily notes use the format in `.obsidian/daily-notes.json`, falling back to `YYYY-MM-DD`.
 

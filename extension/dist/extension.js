@@ -354,9 +354,6 @@ var STYLES = `
 .rv-panel .rv-tag,.rv-viewer .rv-tag,.rv-tagref{color:rgb(167,182,194);cursor:pointer}
 .rv-tagref{font-size:14px;margin-right:8px}
 .bp3-dark .rv-panel .rv-wl,.bp3-dark .rv-viewer .rv-wl{color:rgb(72,175,240)}
-.rv-link{font-size:12px;color:#a7b6c2;cursor:pointer;visibility:hidden}
-.rv-group-head:hover .rv-link{visibility:visible}
-.rv-link:hover{color:#106ba3;text-decoration:underline}
 .rv-content{margin-left:20px}
 .rv-block{display:flex;align-items:flex-start;cursor:pointer}
 .rv-bullet{flex:0 0 auto;width:20px;height:28px;display:flex;align-items:center;justify-content:center}
@@ -543,8 +540,7 @@ ${path}`;
           { class: "rm-ref-page-view-title rv-group-title" },
           h("span", { class: "rv-note", title: path, onclick: () => act.view(path) }, path.replace(/\.md$/i, ""))
         ),
-        ...extras,
-        h("span", { class: "rv-link", title: "Open this note in Obsidian", onclick: () => act.openInObsidian(path) }, "Open in Obsidian")
+        ...extras
       ),
       box
     );

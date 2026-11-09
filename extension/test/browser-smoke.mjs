@@ -73,6 +73,7 @@ const ok = (name, cond) => { checks.push([name, !!cond]); };
 const t1 = await text();
 ok('counterpart shown first, with its vault path as a namespaced title', (await p.locator('.rv-note').first().textContent()) === 'Projects/Project Alpha');
 ok('lines use Roam reference-item styling', (await p.locator('.rv-block.rm-reference-item').count()) > 0);
+ok('no Open in Obsidian link on the page itself', !(await p.locator('.rv-panel').textContent()).includes('Open in Obsidian'));
 ok('backlink snippet shown', t1.includes('see [[Project Alpha]] for context'));
 ok('wikilinks keep faint brackets like Roam', (await p.locator('.rv-block .rv-br').count()) > 0 && (await p.locator('.rv-block', { hasText: 'the alpha project' }).locator('.rv-br').count()) === 0);
 ok('daily backlink shown', t1.includes('2026-11-09'));
