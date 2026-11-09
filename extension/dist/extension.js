@@ -384,6 +384,11 @@ var STYLES = `
 .rv-viewer-body h2{font-size:20px}.rv-viewer-body h3{font-size:17px}.rv-viewer-body h4,.rv-viewer-body h5,.rv-viewer-body h6{font-size:15px}
 .rv-preview h2,.rv-preview h3,.rv-preview h4{margin:8px 0 4px;font-weight:600}
 .bp3-dark .rv-viewer-body.rv-preview{color:inherit}
+.rv-settings{display:flex;flex-direction:column;gap:10px;min-width:280px}
+.rv-settings-list{display:flex;flex-direction:column;gap:6px}
+.rv-settings-row{display:flex;align-items:center;gap:8px}
+.rv-settings-name{flex:1;font-weight:500}
+.rv-settings-status{font-weight:400;font-size:12px;color:#8a9ba8}
 .bp3-dark .rv-sec-head strong,.bp3-dark .rv-meta{color:#5c7080}
 `;
 function installStyles() {
@@ -714,6 +719,58 @@ async function ensurePermission(h2, ask) {
   return await hh.requestPermission({ mode: "read" }) === "granted";
 }
 
+// src/main/settings.ts
+function renderSettings(el, m) {
+  const vs = m.vaults();
+  const btn = (label, fn, cls = "") => h("button", { class: `bp3-button bp3-small ${cls}`, onclick: fn }, label);
+  el.replaceChildren(
+    h(
+      "div",
+      { class: "rv-settings" },
+      vs.length ? h("div", { class: "rv-settings-list" }, ...vs.map((v) => h(
+        "div",
+        { class: "rv-settings-row" },
+        h("div", { class: "rv-settings-name" }, v.name, h("div", { class: "rv-settings-status" }, v.status)),
+        v.needsPermission ? btn("Reconnect", v.reconnect, "bp3-intent-primary") : null,
+        btn("Remove", v.remove, "bp3-minimal")
+      ))) : h("div", { class: "rv-settings-status" }, "No vaults yet."),
+      h("div", { class: "rv-settings-actions" }, btn("Add vault folder", m.add, "bp3-intent-primary")),
+      h(
+        "div",
+        { class: "rv-settings-status" },
+        "Pick the vault folder itself, for example Documents/My Vault, not Documents. Removing a vault forgets it on this device and deletes its cache; the folder is untouched."
+      )
+    )
+  );
+}
+function createSettingsPanel(extensionAPI, m) {
+  if (!extensionAPI?.settings?.panel?.create) return;
+  const React = window.React;
+  const description = "Folders of Markdown notes, such as Obsidian vaults, shown in External Vault References.";
+  if (React?.createElement && React.useRef && React.useEffect) {
+    const VaultList = () => {
+      const ref = React.useRef(null);
+      React.useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const draw = () => renderSettings(el, m);
+        draw();
+        return m.subscribe(draw);
+      }, []);
+      return React.createElement("div", { ref });
+    };
+    extensionAPI.settings.panel.create({
+      tabTitle: "External Vault References",
+      settings: [{ id: "vaults", name: "Vaults", description, action: { type: "reactComponent", component: VaultList } }]
+    });
+  } else {
+    extensionAPI.settings.panel.create({
+      tabTitle: "External Vault References",
+      settings: [{ id: "add-vault", name: "Add vault folder", description, action: { type: "button", onClick: m.add, content: "Add vault folder" } }]
+    });
+  }
+}
+
 // src/main/index.ts
 var workerUrl = "";
 var Vault = class {
@@ -763,14 +820,17 @@ var Vault = class {
       this.worker.postMessage({ id, cmd, args });
     });
   }
+  notes = "";
   set(s) {
     this.state = s;
     this.results.clear();
     refreshAll();
+    changed();
   }
   onStatus(s, detail) {
     if (s === "indexing") this.set({ kind: "indexing", detail });
     else if (s === "ready") {
+      if (/ notes$/.test(detail)) this.notes = detail;
       const live = !detail.startsWith("no live updates");
       if (!live) console.warn("[roam-vaults]", this.name, detail);
       this.set({ kind: "ready", result: null, live });
@@ -810,16 +870,17 @@ var Vault = class {
   }
 };
 var vaults = [];
-var palette = null;
-var removeLabels = [];
-function syncRemoveCommands() {
-  if (!palette) return;
-  removeLabels.forEach((label) => palette.removeCommand({ label }));
-  removeLabels = vaults.map((v) => `External Vault References: Remove vault "${v.id}"`);
-  vaults.forEach((v, i) => palette.addCommand({ label: removeLabels[i], callback: () => removeVault(v) }));
+var listeners = /* @__PURE__ */ new Set();
+function changed() {
+  listeners.forEach((fn) => fn());
+}
+function settingsVault(v) {
+  const s = v.state;
+  const status = s.kind === "permission" ? "Needs permission again" : s.kind === "indexing" ? `Indexing${s.detail ? ` ${s.detail}` : "\u2026"}` : s.kind === "error" ? `Couldn't read: ${s.detail}` : `${v.notes || "Ready"}${s.live ? "" : " \xB7 not live"}`;
+  return { id: v.id, name: v.name, status, needsPermission: s.kind === "permission", reconnect: () => v.connect(true), remove: () => removeVault(v) };
 }
 var save = () => {
-  syncRemoveCommands();
+  changed();
   return saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn("[roam-vaults]", e));
 };
 async function addVault() {
@@ -915,12 +976,15 @@ async function onload({ extensionAPI }) {
     extensionAPI.ui.commandPalette.addCommand({ label, callback });
     cleanups.push(() => extensionAPI.ui.commandPalette.removeCommand({ label }));
   }
-  palette = extensionAPI.ui.commandPalette;
-  cleanups.push(() => {
-    removeLabels.forEach((label) => palette?.removeCommand({ label }));
-    removeLabels = [];
-    palette = null;
+  createSettingsPanel(extensionAPI, {
+    vaults: () => vaults.map(settingsVault),
+    add: addVault,
+    subscribe: (fn) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    }
   });
+  cleanups.push(() => listeners.clear());
   let frame = 0;
   const mo = new MutationObserver(() => {
     cancelAnimationFrame(frame);
@@ -936,7 +1000,7 @@ async function onload({ extensionAPI }) {
   cleanups.push(() => window.removeEventListener("hashchange", onHash));
   const saved = await loadVaults().catch(() => []);
   vaults = saved.map((x) => new Vault(x.id, x.handle));
-  syncRemoveCommands();
+  changed();
   inject();
   await Promise.all(vaults.map((v) => v.connect(false)));
 }

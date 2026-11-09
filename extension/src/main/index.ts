@@ -2,6 +2,7 @@
 // link to the Roam page you are on. Read-only; nothing is written to the graph; no network.
 import { loadVaults, saveVaults, deleteCache } from './store.ts';
 import { pickVaultFolder, ensurePermission } from './picker.ts';
+import { createSettingsPanel, type SettingsVault } from './settings.ts';
 import { ATTR, installStyles, renderPanel, notify, removeToast, openViewer, closeViewer, type SectionState, type SectionActions, type PanelVault, type ViewerActions } from './ui.ts';
 import type { PageResult } from '../engine.ts';
 
@@ -46,10 +47,12 @@ class Vault implements PanelVault {
     const id = ++this.seq;
     return new Promise((res, rej) => { this.waiting.set(id, { res, rej }); this.worker.postMessage({ id, cmd, args }); });
   }
-  set(s: SectionState) { this.state = s; this.results.clear(); refreshAll(); }
+  notes = '';
+  set(s: SectionState) { this.state = s; this.results.clear(); refreshAll(); changed(); }
   private onStatus(s: string, detail: string) {
     if (s === 'indexing') this.set({ kind: 'indexing', detail });
     else if (s === 'ready') {
+      if (/ notes$/.test(detail)) this.notes = detail;
       const live = !detail.startsWith('no live updates');
       if (!live) console.warn('[roam-vaults]', this.name, detail);
       this.set({ kind: 'ready', result: null, live });
@@ -84,16 +87,18 @@ class Vault implements PanelVault {
 }
 
 let vaults: Vault[] = [];
-// One "Remove vault" palette command per vault, since the panel no longer has a section per vault.
-let palette: any = null;
-let removeLabels: string[] = [];
-function syncRemoveCommands() {
-  if (!palette) return;
-  removeLabels.forEach((label) => palette.removeCommand({ label }));
-  removeLabels = vaults.map((v) => `External Vault References: Remove vault "${v.id}"`);
-  vaults.forEach((v, i) => palette.addCommand({ label: removeLabels[i], callback: () => removeVault(v) }));
+// Vault management lives in the extension's settings page; it re-renders on every change.
+const listeners = new Set<() => void>();
+function changed() { listeners.forEach((fn) => fn()); }
+function settingsVault(v: Vault): SettingsVault {
+  const s = v.state;
+  const status = s.kind === 'permission' ? 'Needs permission again'
+    : s.kind === 'indexing' ? `Indexing${s.detail ? ` ${s.detail}` : '…'}`
+    : s.kind === 'error' ? `Couldn't read: ${s.detail}`
+    : `${v.notes || 'Ready'}${s.live ? '' : ' · not live'}`;
+  return { id: v.id, name: v.name, status, needsPermission: s.kind === 'permission', reconnect: () => v.connect(true), remove: () => removeVault(v) };
 }
-const save = () => { syncRemoveCommands(); return saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn('[roam-vaults]', e)); };
+const save = () => { changed(); return saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn('[roam-vaults]', e)); };
 
 async function addVault() {
   const h = await pickVaultFolder();
@@ -196,8 +201,12 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
     extensionAPI.ui.commandPalette.addCommand({ label, callback });
     cleanups.push(() => extensionAPI.ui.commandPalette.removeCommand({ label }));
   }
-  palette = extensionAPI.ui.commandPalette;
-  cleanups.push(() => { removeLabels.forEach((label) => palette?.removeCommand({ label })); removeLabels = []; palette = null; });
+  createSettingsPanel(extensionAPI, {
+    vaults: () => vaults.map(settingsVault),
+    add: addVault,
+    subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+  });
+  cleanups.push(() => listeners.clear());
 
   let frame = 0;
   const mo = new MutationObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(inject); });
@@ -209,7 +218,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
 
   const saved = await loadVaults().catch(() => []);
   vaults = saved.map((x) => new Vault(x.id, x.handle));
-  syncRemoveCommands();
+  changed();
   inject();
   await Promise.all(vaults.map((v) => v.connect(false)));
 }
