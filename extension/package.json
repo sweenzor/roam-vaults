@@ -1,0 +1,17 @@
+{
+  "name": "roam-vaults",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Roam Research extension that shows local Markdown vault notes (Obsidian) next to Roam pages.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "test:browser": "npm run build && node test/browser-smoke.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0",
+    "typescript": "5.6.3"
+  }
+}
