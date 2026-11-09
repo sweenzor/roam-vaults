@@ -7,7 +7,7 @@ import { splitFrontmatter } from '../core/frontmatter.ts';
 export function renderMarkdown(text: string, highlightLine?: number): DocumentFragment {
   const frag = document.createDocumentFragment();
   const fm = splitFrontmatter(text);
-  const lines = text.split('\n');
+  const lines = text.split(/\r?\n/); // notes saved on Windows end lines with \r\n
   let i = 0;
   if (fm.raw !== null) {
     const end = fm.bodyStartLine;

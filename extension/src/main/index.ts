@@ -19,6 +19,9 @@ class Vault implements PanelVault {
   private worker: Worker;
   private seq = 0;
   private waiting = new Map<number, { res: (v: any) => void; rej: (e: Error) => void }>();
+  private gen = 0;        // goes up whenever cached results go stale
+  private opened = false; // has the worker been given the folder?
+  private stopped = false;
 
   constructor(id: string, handle: FileSystemDirectoryHandle) {
     this.id = id; this.handle = handle; this.name = handle.name;
@@ -27,13 +30,17 @@ class Vault implements PanelVault {
       if (data.id !== undefined) {
         const w = this.waiting.get(data.id); this.waiting.delete(data.id);
         if (data.ok) w?.res(data.result); else w?.rej(new Error(data.error));
-      } else if (data.type === 'status') this.onStatus(data.state, data.detail);
-      else if (data.type === 'changed') { this.results.clear(); refreshAll(); }
+      } else if (data.type === 'status') this.onStatus(data.state, data.detail, data.live, data.notLiveWhy);
+      else if (data.type === 'changed') { this.stale(); refreshAll(); }
     };
-    this.worker.onerror = (e) => this.set({ kind: 'error', detail: e.message || 'indexer crashed' });
+    this.worker.onerror = (e) => {
+      const detail = e.message || 'indexer crashed';
+      this.fail(new Error(detail));
+      this.set({ kind: 'error', detail });
+    };
     const viewer: ViewerActions = {
       read: (path) => this.call<string>('read', { path }),
-      resolve: (target, from) => this.call<string | null>('resolve', { target, from }),
+      resolve: (target, from) => this.call<string | null>('resolve', { target, from }).catch(() => null),
       openInObsidian: (path) => this.openInObsidian(path),
     };
     this.act = {
@@ -48,19 +55,30 @@ class Vault implements PanelVault {
     return new Promise((res, rej) => { this.waiting.set(id, { res, rej }); this.worker.postMessage({ id, cmd, args }); });
   }
   notes = '';
-  set(s: SectionState) { this.state = s; this.results.clear(); refreshAll(); changed(); }
-  private onStatus(s: string, detail: string) {
+  private stale() { this.gen++; this.results.clear(); }
+  /** Settle every call still waiting on the worker, so nothing waits for an answer that can't come. */
+  private fail(e: Error) {
+    const waiting = [...this.waiting.values()];
+    this.waiting.clear();
+    waiting.forEach((w) => w.rej(e));
+  }
+  set(s: SectionState) { if (this.stopped) return; this.state = s; this.stale(); refreshAll(); changed(); }
+  private onStatus(s: string, detail: string, live: boolean, notLiveWhy: string) {
     if (s === 'indexing') this.set({ kind: 'indexing', detail });
+    else if (s === 'error') this.set({ kind: 'error', detail });
     else if (s === 'ready') {
-      if (/ notes?$/.test(detail)) this.notes = detail;
-      const live = !detail.startsWith('no live updates');
-      if (!live) console.warn('[roam-vaults]', this.name, detail);
+      this.notes = detail;
+      if (!live) console.warn('[roam-vaults]', this.name, 'no live updates:', notLiveWhy);
       this.set({ kind: 'ready', result: null, live });
     }
   }
   async connect(ask: boolean) {
-    if (!(await ensurePermission(this.handle, ask))) { this.set({ kind: 'permission' }); return; }
+    let allowed = false;
+    try { allowed = await ensurePermission(this.handle, ask); }
+    catch (e) { console.warn('[roam-vaults] permission check failed for', this.name, e); }
+    if (!allowed) { this.set({ kind: 'permission' }); return; }
     this.set({ kind: 'indexing', detail: '' });
+    this.opened = true;
     try {
       const stats: any = await this.call('open', { handle: this.handle, key: this.id });
       if (stats.errors?.length) console.warn('[roam-vaults] unreadable files in', this.name, stats.errors);
@@ -72,10 +90,16 @@ class Vault implements PanelVault {
     if (this.state.kind !== 'ready') return null;
     let r = this.results.get(title);
     if (r === undefined) {
+      const gen = this.gen;
       r = await this.call<PageResult | null>('query', { title }).catch(() => null);
-      this.results.set(title, r);
+      if (gen === this.gen) this.results.set(title, r); // an answer from before a change is not kept
     }
     return r;
+  }
+  /** Scan the folder again. A vault that still needs permission has nothing to scan. */
+  async rescan() {
+    if (!this.opened || this.stopped) return;
+    await this.call('rescan').catch(() => {}); // the worker reports a failed scan as an error status
   }
   openInObsidian(path: string) {
     const a = document.createElement('a');
@@ -83,7 +107,7 @@ class Vault implements PanelVault {
     a.rel = 'noopener';
     a.click();
   }
-  stop() { this.worker.terminate(); this.waiting.clear(); }
+  stop() { this.stopped = true; this.worker.terminate(); this.fail(new Error('The vault was removed.')); }
 }
 
 let vaults: Vault[] = [];
@@ -101,13 +125,15 @@ function settingsVault(v: Vault): SettingsVault {
 const save = () => { changed(); return saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn('[roam-vaults]', e)); };
 
 async function addVault() {
+  const load = loads;
   const h = await pickVaultFolder();
-  if (!h) return;
+  if (!h || load !== loads) return; // nothing picked, or unloaded while the picker was open
   for (const v of vaults) if (await v.handle.isSameEntry(h)) { notify(`"${h.name}" is already added.`); return; }
   let id = h.name, n = 2;
   while (vaults.some((v) => v.id === id)) id = `${h.name} (${n++})`;
   const v = new Vault(id, h);
   vaults.push(v);
+  inject(); // pages get no panel while there are no vaults
   await save();
   await v.connect(false);
 }
@@ -138,21 +164,26 @@ async function titleFor(refs: HTMLElement): Promise<string | null> {
 }
 
 // ---------- panel injection ----------
+const fills = new WeakMap<HTMLElement, number>();
 async function fill(panel: HTMLElement) {
   const title = panel.dataset.title!;
+  const seq = (fills.get(panel) ?? 0) + 1;
+  fills.set(panel, seq);
   const snapshot = vaults.slice();
   const states = await Promise.all(snapshot.map(async (v): Promise<PanelVault> =>
     v.state.kind === 'ready' ? { id: v.id, name: v.name, act: v.act, state: { ...v.state, result: await v.query(title) } } : v));
-  if (panel.dataset.title !== title || !panel.isConnected) return;
+  // A fill started later carries newer results, so this one must not draw over it.
+  if (fills.get(panel) !== seq || panel.dataset.title !== title || !panel.isConnected) return;
   renderPanel(panel, states);
 }
 function refreshAll() {
   document.querySelectorAll<HTMLElement>(`.rv-panel[${ATTR}]`).forEach(fill);
 }
 
-let scanning = false;
+let scanning = false, scanAgain = false;
 async function inject() {
-  if (scanning) return;
+  if (!vaults.length) return; // nothing to show, so no work on page changes
+  if (scanning) { scanAgain = true; return; } // the page changed mid-scan: look again afterwards
   scanning = true;
   try {
     const refsEls = document.querySelectorAll<HTMLElement>('.roam-article .rm-reference-main');
@@ -173,12 +204,15 @@ async function inject() {
       fill(panel);
     }
   } finally { scanning = false; }
+  if (scanAgain) { scanAgain = false; inject(); }
 }
 
 // ---------- lifecycle ----------
 const cleanups: (() => void)[] = [];
+let loads = 0; // goes up on every load and unload, so a load still in progress can tell it was unloaded
 
 async function onload({ extensionAPI }: { extensionAPI: any }) {
+  const load = ++loads;
   cleanups.push(installStyles());
   workerUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }));
 
@@ -186,7 +220,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
   createSettingsPanel(extensionAPI, {
     vaults: () => vaults.map(settingsVault),
     add: addVault,
-    rescan: () => vaults.forEach((v) => v.call('rescan').catch((e) => notify(e.message, 'error'))),
+    rescan: () => vaults.forEach((v) => v.rescan()),
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
   });
   cleanups.push(() => listeners.clear());
@@ -200,6 +234,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
   cleanups.push(() => window.removeEventListener('hashchange', onHash));
 
   const saved = await loadVaults().catch(() => []);
+  if (load !== loads) return; // unloaded while the saved vaults were being read
   vaults = saved.map((x) => new Vault(x.id, x.handle));
   changed();
   inject();
@@ -207,6 +242,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
 }
 
 function onunload() {
+  loads++;
   cleanups.splice(0).forEach((f) => f());
   vaults.forEach((v) => v.stop()); vaults = [];
   URL.revokeObjectURL(workerUrl);

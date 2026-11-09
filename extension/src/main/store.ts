@@ -17,7 +17,7 @@ async function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
     const tx = db.transaction(STORE, mode);
     const req = fn(tx.objectStore(STORE));
     tx.oncomplete = () => { db.close(); res((req as IDBRequest | undefined)?.result); };
-    tx.onerror = () => { db.close(); rej(tx.error); };
+    tx.onerror = tx.onabort = () => { db.close(); rej(tx.error); }; // abort: storage full, for example
   });
 }
 
@@ -41,7 +41,7 @@ export function deleteCache(id: string): Promise<void> {
       const tx = db.transaction('vaults', 'readwrite');
       tx.objectStore('vaults').delete(id);
       tx.oncomplete = () => { db.close(); res(); };
-      tx.onerror = () => { db.close(); rej(tx.error); };
+      tx.onerror = tx.onabort = () => { db.close(); rej(tx.error); };
     };
   });
 }
