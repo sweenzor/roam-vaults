@@ -160,7 +160,7 @@ async function build() {
   engine = new VaultEngine(handleFS, await dailyFormats());
   const stats = await engine.build(await loadCache(vaultKey), (done, total) => status('indexing', `${done} of ${total} notes`));
   saveCacheSoon();
-  status('ready', `${stats.notes} notes`);
+  status('ready', `${stats.notes} ${stats.notes === 1 ? 'note' : 'notes'}`);
   post({ type: 'changed', paths: [] });
   return stats;
 }

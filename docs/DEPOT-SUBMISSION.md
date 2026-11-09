@@ -58,7 +58,7 @@ Images in the README must be absolute URLs because Roam renders it outside GitHu
 
 | Rule (from Roam's developer docs) | Status |
 |---|---|
-| Default export with `onload` and `onunload`; everything set up in `onload` is removed in `onunload` | Meets. Commands, observers, listeners, styles, workers, the Blob URL, the viewer and all injected nodes are removed |
+| Default export with `onload` and `onunload`; everything set up in `onload` is removed in `onunload` | Meets. The settings panel, observers, listeners, styles, workers, the Blob URL, the viewer and all injected nodes are removed |
 | Dependencies are "scrutinized heavily"; use none if you can | Meets. No runtime dependencies. Only esbuild and TypeScript at build time |
 | Use Roam's shared libraries (React, Blueprint, `idb`, …) instead of bundling your own copy | Meets. Nothing bundled. IndexedDB is used directly, not through a bundled `idb` |
 | Prefix CSS classes to avoid clashes | Meets. All classes start with `rv-` |

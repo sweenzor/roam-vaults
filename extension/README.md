@@ -63,12 +63,12 @@ second.
 ## Getting started
 
 1. Install **Vaults** from Roam Depot.
-2. Open any page. At the bottom, in the **External Vault References** section, click **Add vault folder**.
-   You can also open the command palette (Cmd+P or Ctrl+P) and run
-   **External Vault References: Add vault folder**.
-3. Choose your vault folder and allow access when asked.
+2. Open **Settings → Roam Depot → External Vault References**.
+3. Click **Add vault folder**, choose your vault folder, and allow access when asked.
 
-The first scan of a large vault takes a few seconds. After that, only changed files are read again.
+Your notes then show up in an **External Vault References** section at the bottom of each page. The section
+only appears once you've added a vault. The first scan of a large vault takes a few seconds. After that,
+only changed files are read again.
 
 ### Choosing the right folder
 
@@ -76,26 +76,20 @@ Choose the vault folder itself, such as `Documents/My Vault`. Don't choose `Docu
 `Downloads` or your home folder. macOS protects those folders, and Roam can't open them. If that happens,
 the extension tells you, and you need to quit and reopen Roam before you try again.
 
-### Adding more than one vault
+You can't type a folder path. Roam can only read a folder you pick in the system's folder dialog.
 
-Hover the **External Vault References** header and click **Add vault**, or run
-**External Vault References: Add vault folder** again. Notes from all your vaults appear in the same section,
-each title starting with its vault's name.
+### Managing vaults
 
-### Removing a vault
+Everything is in **Settings → Roam Depot → External Vault References**:
 
-Open the command palette and run **External Vault References: Remove vault "name"**. There's one such
-command for each vault. To remove every vault at once, run **External Vault References: Remove all vaults**. Removing a vault makes Roam forget the folder and deletes
-its cache. Your files aren't touched.
+- **Add vault folder** adds another vault. Notes from all your vaults appear in the same section on each
+  page, each title starting with its vault's name.
+- Each vault shows its status, such as its note count, "Indexing" or "Needs permission".
+- **Remove** forgets that vault on this computer and deletes its cache. Your files aren't touched.
+- **Reconnect** appears when Roam needs your permission again to read a vault.
+- **Rescan** reads every vault again. Only changed files are parsed.
 
-## Commands
-
-| Command | What it does |
-|---|---|
-| External Vault References: Add vault folder | Adds a vault. Also on hover in the section header. |
-| External Vault References: Rescan vaults | Reads every vault again. Only changed files are parsed. |
-| External Vault References: Remove vault "name" | Forgets that vault and deletes its cache. One command per vault. |
-| External Vault References: Remove all vaults | Forgets every vault on this computer. |
+Vaults adds no commands to the command palette.
 
 ## Privacy
 
