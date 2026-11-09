@@ -11,6 +11,21 @@ network.
 
 ![External Vault References on a Roam page, listing notes from two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/one-section.png)
 
+## What's an Obsidian-style vault?
+
+A vault is just a folder of Markdown (`.md`) files on your computer, with subfolders, that link to each
+other. [Obsidian](https://obsidian.md) made the idea popular. See
+[How Obsidian stores data](https://help.obsidian.md/data-storage) for what a vault is, and
+[Internal links](https://help.obsidian.md/links) and
+[Obsidian Flavored Markdown](https://help.obsidian.md/obsidian-flavored-markdown) for the link and tag
+syntax Vaults understands. You don't need Obsidian installed: any folder of Markdown notes works.
+
+That includes **Open Knowledge Format (OKF)** bundles. [OKF](https://github.com/GoogleCloudPlatform/open-knowledge-format)
+is an open format from Google Cloud for knowledge kept as plain Markdown files with YAML frontmatter
+([spec](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md)). OKF uses standard
+Markdown links, including bundle-absolute ones like `[Customers](/tables/customers.md)`, and Vaults follows
+those as well as `[[wikilinks]]`.
+
 ## What it shows
 
 One section covers every vault you add, and its count is the total across vaults. Notes are titled by
@@ -42,8 +57,8 @@ second.
 - **Roam desktop app** (tested on macOS). Roam in Chrome or Edge should also work, but the browser asks you to
   allow folder access again on each visit unless you choose "Allow on every visit". Other browsers and
   Roam's mobile apps can't read local folders (see [Mobile](#mobile)).
-- A folder of Markdown (`.md`) files. Obsidian vaults work best: daily-note formats, aliases and tags are
-  read the way Obsidian reads them.
+- A folder of Markdown (`.md`) files, such as an Obsidian vault or an OKF bundle. Obsidian vaults work
+  best: daily-note formats, aliases and tags are read the way Obsidian reads them.
 
 ## Getting started
 
