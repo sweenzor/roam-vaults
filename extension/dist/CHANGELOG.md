@@ -12,6 +12,6 @@ First release of Vaults: see notes from your Obsidian-style vaults in your Roam 
 - Unfold the matching note in place, or open any note in a read-only viewer that follows links.
 - **Open in Obsidian** button in the note viewer.
 - Updates live when notes change, and caches parsed notes so later starts are fast.
-- Manage vaults in Settings → Roam Depot → External Vault References: add, remove, reconnect and rescan.
+- Manage vaults in Settings → Roam Depot → Vaults: add, remove, reconnect and rescan.
   No command palette commands.
 - Read-only, with no network requests.

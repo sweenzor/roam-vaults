@@ -50,9 +50,9 @@ That lets the extension stay in `extension/` next to the spike and docs.
 | `extension/extension.css` (optional) | Not used. Styles are injected by `extension.js` and removed on unload |
 | `extension/build.sh` | Added. Runs `npm ci` and `npm run build` on Ubuntu 24.04; npm is available there. The job has a 5-minute limit, and the build takes seconds |
 
-Images in the README must be absolute URLs because Roam renders it outside GitHub. The README points at
-`raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/…`, so those images appear once the
-`v0.1.0` tag exists.
+Images in the README must be absolute URLs because Roam renders it outside GitHub. They currently load
+from `raw.githubusercontent.com/sweenzor/roam-vaults/main/docs/images/…`. Before submitting, re-pin them to
+the release tag or commit so a later change on `main` can't alter the published README.
 
 ## Review rules, and how we meet them
 
@@ -89,7 +89,8 @@ downloaded by anyone who has it.
       folder in developer mode on a hosted graph.
 - [ ] Change "0.1.0 (unreleased)" in `extension/CHANGELOG.md` to the release date. `package.json` is
       already `0.1.0`.
-- [ ] Tag the release commit `v0.1.0` and push the tag. The README images load from that tag.
+- [ ] Re-pin the README image URLs from `main` to `v0.1.0` (or the release commit), then tag that
+      commit `v0.1.0` and push the tag.
 - [ ] Put the release commit's full SHA in `docs/depot/roam-vaults.json` as `source_commit`.
 - [ ] Fork `Roam-Research/roam-depot`, copy the JSON to `extensions/sweenzor/roam-vaults.json`, and open
       the PR with the description below.
