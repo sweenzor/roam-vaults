@@ -530,7 +530,7 @@ ${path}`;
   const tagRef = (v, path) => {
     const tags = tagsOf.get(v), t = tags.get(path);
     tags.delete(path);
-    return t ? h("span", { class: "rv-tagref", title: "Tagged with this page" }, `#${t}`) : null;
+    return t ? h("span", { class: "rv-tagref" }, `#${t}`) : null;
   };
   for (const { v, r } of list) for (const c of r.counterparts)
     out.append(group(v, "page", c.path, false, [tagRef(v, c.path)], preview(v, c.path)));
