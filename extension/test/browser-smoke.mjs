@@ -91,7 +91,7 @@ ok('daily backlink shown', t1.includes('2026-11-09'));
 ok('no palette commands', (await p.evaluate(() => window.__cmds.length)) === 0);
 ok('nothing on the page before a vault is added', emptyPanel);
 ok('settings offers Rescan once a vault exists', (await p.locator('#settings-box button', { hasText: 'Rescan' }).count()) === 1);
-ok('settings tab registered with a vault list', await p.evaluate(() => window.__settings.tabTitle === 'External Vault References' && window.__settings.settings[0].action.type === 'reactComponent'));
+ok('settings tab registered with a vault list', await p.evaluate(() => window.__settings.tabTitle === 'Vaults' && window.__settings.settings[0].action.type === 'reactComponent'));
 await p.waitForFunction(() => document.querySelector('#settings-box')?.textContent.includes('notes'), null, { timeout: 5000 }).catch(() => {});
 ok('settings list shows the vault and its note count', /My Vault3 notes/.test(await p.locator('#settings-box').textContent()));
 ok('one panel only', (await p.locator('.rv-panel').count()) === 1);
