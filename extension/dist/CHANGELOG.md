@@ -5,7 +5,7 @@
 First release of Vaults: see notes from your Obsidian-style vaults in your Roam graph.
 
 - Adds an **External Vault References** section below Linked and Unlinked References on every page,
-  styled like them. It appears once a vault is connected.
+  styled like them. It appears only on pages with matching vault notes, and adds no notices or messages to the page.
 - Shows the vault note that is this page (same name, any case, alias, folder path or daily note), notes
   that link here, and notes tagged here.
 - Supports several vaults in one section, with the vault name before each title.

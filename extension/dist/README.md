@@ -66,9 +66,9 @@ second.
 2. Open **Settings → Roam Depot → Vaults**.
 3. Click **Add vault folder**, choose your vault folder, and allow access when asked.
 
-Your notes then show up in an **External Vault References** section at the bottom of each page. The section
-only appears once you've added a vault. The first scan of a large vault takes a few seconds. After that,
-only changed files are read again.
+Matching notes then show up in an **External Vault References** section below Linked References. The
+section appears only on pages that have matching vault notes. Other pages look exactly as before. The first
+scan of a large vault takes a few seconds. After that, only changed files are read again.
 
 ### Choosing the right folder
 
@@ -84,7 +84,8 @@ Everything is in **Settings → Roam Depot → Vaults**:
 
 - **Add vault folder** adds another vault. Notes from all your vaults appear in the same section on each
   page, each title starting with its vault's name.
-- Each vault shows its status, such as its note count, "Indexing" or "Needs permission".
+- Each vault shows its status here, such as its note count, "Indexing" or "Needs permission again".
+  The page itself never shows indexing or permission notices.
 - **Remove** forgets that vault on this computer and deletes its cache. Your files aren't touched.
 - **Reconnect** appears when Roam needs your permission again to read a vault.
 - **Rescan** reads every vault again. Only changed files are parsed.
