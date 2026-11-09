@@ -25,6 +25,7 @@ const STYLES = `
 .rv-group-title{margin-right:8px}
 .rv-note{cursor:pointer;color:rgb(51,122,183);font-size:16px;line-height:24px}
 .rv-note:hover{text-decoration:underline}
+.rv-vault{color:#8a9ba8}
 .rv-panel .rv-wl,.rv-viewer .rv-wl{color:rgb(16,107,163);cursor:pointer}
 .rv-panel .rv-wl:hover,.rv-viewer .rv-wl:hover,.rv-panel .rv-tag:hover,.rv-viewer .rv-tag:hover{text-decoration:underline}
 .rv-br{color:rgb(167,182,194)}
@@ -96,9 +97,9 @@ export function notify(text: string, kind: 'info' | 'error' = 'info', ms = 5000)
 export function removeToast() { toastEl?.remove(); clearTimeout(toastTimer); }
 
 // ---------- panel ----------
-// One panel per Roam reference area, holding one "External Vault References" section per
+// One panel per Roam reference area: a single "External Vault References" fold covering every
 // connected vault. Laid out like Roam's own Linked References: a grey bold header with a
-// caret, then one group per note (caret + note title), and the note's lines as bullets.
+// caret, then one group per note (caret + vault/path title), and the note's lines as bullets.
 export type SectionState =
   | { kind: 'permission' }
   | { kind: 'indexing'; detail: string }
@@ -115,39 +116,66 @@ export interface SectionActions {
 }
 export interface PanelVault { id: string; name: string; state: SectionState; act: SectionActions }
 
-const COLLAPSE_KEY = 'roam-vaults:collapsed:';
-const isCollapsed = (id: string) => { try { return localStorage.getItem(COLLAPSE_KEY + id) === '1'; } catch { return false; } };
+const COLLAPSE_KEY = 'roam-vaults:collapsed';
+const isCollapsed = () => { try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; } };
 /** Note groups the user opened or closed, overriding the default. Kept across re-renders. */
 const groupOpen = new Map<string, boolean>();
 
 const caret = (open: boolean, extra = '') =>
   h('span', { class: `bp3-icon-standard bp3-icon-caret-down rm-caret ${open ? 'rm-caret-open' : 'rm-caret-closed'} ${extra}` });
 
-export function renderPanel(el: HTMLElement, vaults: PanelVault[], choose: () => void) {
+export function renderPanel(el: HTMLElement, vaults: PanelVault[], add: () => void) {
   el.className = 'rv-panel';
+  const tool = (label: string, title: string, fn: () => void) =>
+    h('button', { class: 'bp3-button bp3-minimal bp3-small rv-tool', title, onclick: (e: Event) => { e.stopPropagation(); fn(); } }, label);
   if (!vaults.length) {
     el.replaceChildren(h('div', { class: 'rv-sec' },
-      sectionHead(null, 'External Vault References', ''),
-      h('div', { class: 'rv-empty' },
+      sectionHead('External Vault References', ''),
+      h('div', { class: 'rv-sec-body' }, h('div', { class: 'rv-empty' },
         'Add a folder of Markdown notes, such as an Obsidian vault, to see its notes about this page. ',
-        h('button', { class: 'bp3-button bp3-small', onclick: choose }, 'Add vault folder'))));
+        h('button', { class: 'bp3-button bp3-small', onclick: add }, 'Add vault folder')))));
     return;
   }
-  el.replaceChildren(...vaults.map((v) => section(v)));
+  // One fold for every vault. Vaults that aren't ready say so in a line of their own.
+  const notices: HTMLElement[] = [];
+  const ready: { v: PanelVault; r: PageResult }[] = [];
+  let n = 0, notLive = false;
+  for (const v of vaults) {
+    const s = v.state;
+    if (s.kind === 'permission') notices.push(h('div', { class: 'rv-empty' }, `Roam needs permission to read "${v.name}" again. `,
+      h('button', { class: 'bp3-button bp3-small', onclick: v.act.reconnect }, 'Reconnect')));
+    else if (s.kind === 'indexing') notices.push(h('div', { class: 'rv-empty' }, `Reading "${v.name}"… ${s.detail}`));
+    else if (s.kind === 'error') notices.push(h('div', { class: 'rv-empty' }, `Couldn't read "${v.name}": ${s.detail}`));
+    else {
+      if (!s.live) notLive = true;
+      if (s.result) {
+        ready.push({ v, r: s.result });
+        n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
+      }
+    }
+  }
+  const body = h('div', { class: 'rv-sec-body' }, ...notices);
+  if (n) body.append(resultBody(ready, vaults.length > 1));
+  else if (!notices.length) body.append(h('div', { class: 'rv-empty' }, 'No vault notes match or link to this page.'));
+  const collapsed = isCollapsed();
+  el.replaceChildren(h('div', { class: 'rv-sec' + (collapsed ? ' rv-collapsed' : '') },
+    sectionHead(`${n ? `${n} ` : ''}External Vault References`, notLive ? 'not live' : '', !collapsed,
+      [tool('Add vault', 'Add another vault folder', add)]),
+    body));
 }
 
-function sectionHead(v: PanelVault | null, label: string, meta: string, open = true, tools: HTMLElement[] = []) {
+function sectionHead(label: string, meta: string, open = true, tools: HTMLElement[] = []) {
   const head = h('div', { class: 'rv-sec-head' },
     caret(open, 'rv-head-caret'),
     h('strong', {}, label),
     meta ? h('span', { class: 'rv-meta' }, meta) : null,
     h('span', { class: 'rv-spacer' }),
     ...tools);
-  if (v) head.addEventListener('click', (e) => {
+  head.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('button')) return;
-    const now = !isCollapsed(v.id);
-    try { localStorage.setItem(COLLAPSE_KEY + v.id, now ? '1' : '0'); } catch { /* private mode */ }
-    document.querySelectorAll<HTMLElement>(`.rv-sec[data-vault="${CSS.escape(v.id)}"]`).forEach((s) => {
+    const now = !isCollapsed();
+    try { localStorage.setItem(COLLAPSE_KEY, now ? '1' : '0'); } catch { /* private mode */ }
+    document.querySelectorAll<HTMLElement>(`.rv-panel[${ATTR}] .rv-sec`).forEach((s) => {
       s.classList.toggle('rv-collapsed', now);
       s.querySelector('.rv-head-caret')?.classList.replace(now ? 'rm-caret-open' : 'rm-caret-closed', now ? 'rm-caret-closed' : 'rm-caret-open');
     });
@@ -155,38 +183,13 @@ function sectionHead(v: PanelVault | null, label: string, meta: string, open = t
   return head;
 }
 
-function section(v: PanelVault): HTMLElement {
-  const s = v.state, act = v.act;
-  const tool = (label: string, title: string, fn: () => void) =>
-    h('button', { class: 'bp3-button bp3-minimal bp3-small rv-tool', title, onclick: (e: Event) => { e.stopPropagation(); fn(); } }, label);
-  let count = '', meta = v.name, body: HTMLElement;
-  if (s.kind === 'permission') {
-    body = h('div', { class: 'rv-empty' }, `Roam needs permission to read "${v.name}" again. `,
-      h('button', { class: 'bp3-button bp3-small', onclick: act.reconnect }, 'Reconnect'));
-  } else if (s.kind === 'indexing') {
-    meta += ` · indexing ${s.detail}`;
-    body = h('div', { class: 'rv-empty' }, 'Reading the vault…');
-  } else if (s.kind === 'error') {
-    body = h('div', { class: 'rv-empty' }, `Couldn't read this vault: ${s.detail}`);
-  } else {
-    const r = s.result;
-    const n = r ? new Set([...r.counterparts, ...r.backlinks, ...r.tagged].map((x) => x.path)).size : 0;
-    count = `${n} `;
-    if (!s.live) meta += ' · not live';
-    body = r && n ? resultBody(v.id, r, act) : h('div', { class: 'rv-empty' }, 'No notes in this vault match or link to this page.');
-  }
-  const collapsed = isCollapsed(v.id);
-  return h('div', { class: 'rv-sec' + (collapsed ? ' rv-collapsed' : ''), 'data-vault': v.id },
-    sectionHead(v, `${count}External Vault References`, meta, !collapsed,
-      [tool('Remove', `Stop showing "${v.name}" in this graph on this device`, act.remove)]),
-    h('div', { class: 'rv-sec-body' }, body));
-}
-
-function resultBody(vid: string, r: PageResult, act: SectionActions): HTMLElement {
+/** Notes from every ready vault: the notes that are this page first, then notes linking here,
+ *  then notes only tagged here. With more than one vault, each title starts with its vault name. */
+function resultBody(list: { v: PanelVault; r: PageResult }[], showVault: boolean): HTMLElement {
   const out = h('div', { class: 'rv-groups' });
-  /** One note: caret + vault path as a namespaced title (+ tag); content shows when open. Open in Obsidian lives in the viewer. */
-  const group = (key: string, path: string, title: string, defOpen: boolean, extras: (Node | null)[], content: () => HTMLElement) => {
-    const k = `${vid}\n${key}\n${path}`;
+  /** One note: caret + (vault/)path as a namespaced title (+ tag); content shows when open. Open in Obsidian lives in the viewer. */
+  const group = (v: PanelVault, key: string, path: string, defOpen: boolean, extras: (Node | null)[], content: () => HTMLElement) => {
+    const k = `${v.id}\n${key}\n${path}`;
     const box = h('div', { class: 'rv-content' });
     const c = caret(false, 'rm-caret-showing rv-group-caret');
     const set = (open: boolean) => {
@@ -199,25 +202,27 @@ function resultBody(vid: string, r: PageResult, act: SectionActions): HTMLElemen
     return h('div', { class: 'rv-group' },
       h('div', { class: 'flex-h-box rv-group-head' }, c,
         h('div', { class: 'rm-ref-page-view-title rv-group-title' },
-          h('span', { class: 'rv-note', title: path, onclick: () => act.view(path) }, path.replace(/\.md$/i, ''))),
+          h('span', { class: 'rv-note', title: `${v.name}/${path}`, onclick: () => v.act.view(path) },
+            showVault ? h('span', { class: 'rv-vault' }, `${v.name}/`) : null, path.replace(/\.md$/i, ''))),
         ...extras),
       box);
   };
   // rm-reference-item: Roam's own grey reference background.
-  const preview = (path: string) => () => { const el = h('div', { class: 'rv-viewer-body rv-preview rm-reference-item' }); loadPreview(el, path, act); return el; };
+  const preview = (v: PanelVault, path: string) => () => { const el = h('div', { class: 'rv-viewer-body rv-preview rm-reference-item' }); loadPreview(el, path, v.act); return el; };
 
-  // A note shows once: a tagged note that also links here gets the tag as a badge.
-  const tags = new Map(r.tagged.map((t) => [t.path, t.tag]));
-  const tagBadge = (path: string) => { const t = tags.get(path); tags.delete(path); return t ? h('span', { class: 'rv-tagref', title: 'Tagged with this page' }, `#${t}`) : null; };
-  for (const c of r.counterparts)
-    out.append(group('page', c.path, c.title, false,
-      [tagBadge(c.path)],
-      preview(c.path)));
-  for (const b of r.backlinks)
-    out.append(group('links', b.path, b.title, true, [tagBadge(b.path)],
-      () => h('div', {}, ...b.lines.map((l) => blockEl(l.text, () => act.view(b.path, l.line), l.line)))));
-  for (const t of r.tagged) if (tags.has(t.path))
-    out.append(group('tag', t.path, t.title, false, [tagBadge(t.path)], preview(t.path)));
+  // A note shows once: a tagged note that also links here gets the tag next to its title.
+  const tagsOf = new Map(list.map(({ v, r }) => [v, new Map(r.tagged.map((t) => [t.path, t.tag]))]));
+  const tagRef = (v: PanelVault, path: string) => {
+    const tags = tagsOf.get(v)!, t = tags.get(path); tags.delete(path);
+    return t ? h('span', { class: 'rv-tagref', title: 'Tagged with this page' }, `#${t}`) : null;
+  };
+  for (const { v, r } of list) for (const c of r.counterparts)
+    out.append(group(v, 'page', c.path, false, [tagRef(v, c.path)], preview(v, c.path)));
+  for (const { v, r } of list) for (const b of r.backlinks)
+    out.append(group(v, 'links', b.path, true, [tagRef(v, b.path)],
+      () => h('div', {}, ...b.lines.map((l) => blockEl(l.text, () => v.act.view(b.path, l.line), l.line)))));
+  for (const { v, r } of list) for (const t of r.tagged) if (tagsOf.get(v)!.has(t.path))
+    out.append(group(v, 'tag', t.path, false, [tagRef(v, t.path)], preview(v, t.path)));
   return out;
 }
 

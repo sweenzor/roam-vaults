@@ -77,13 +77,13 @@ ok('no Open in Obsidian link on the page itself', !(await p.locator('.rv-panel')
 ok('backlink snippet shown', t1.includes('see [[Project Alpha]] for context'));
 ok('wikilinks keep faint brackets like Roam', (await p.locator('.rv-block .rv-br').count()) > 0 && (await p.locator('.rv-block', { hasText: 'the alpha project' }).locator('.rv-br').count()) === 0);
 ok('daily backlink shown', t1.includes('2026-11-09'));
-ok('commands registered', (await p.evaluate(() => window.__cmds.length)) === 3);
+ok('commands registered (3 + Remove per vault)', (await p.evaluate(() => window.__cmds.map((c) => c.label))).includes('External Vault References: Remove vault "My Vault"') && (await p.evaluate(() => window.__cmds.length)) === 4);
 ok('one panel only', (await p.locator('.rv-panel').count()) === 1);
 ok('panel sits below Linked References', await p.evaluate(() =>
   document.querySelector('.rm-reference-main').compareDocumentPosition(document.querySelector('.rv-panel')) & Node.DOCUMENT_POSITION_FOLLOWING));
 
 // unfold the matching note inline, and follow a link inside it
-ok('header uses Roam wording', t1.includes('3 External Vault References') && t1.includes('My Vault'));
+ok('header uses Roam wording, no vault prefix with one vault', t1.includes('3 External Vault References') && !t1.includes('My Vault/'));
 ok('counterpart folded by default', await p.locator('.rv-group').first().locator('.rv-content').evaluate((e) => e.hidden));
 await p.locator('.rv-group-caret').first().click();
 await p.waitForFunction(() => document.querySelector('.rv-preview')?.textContent.includes('Kickoff with'), null, { timeout: 5000 });
@@ -113,19 +113,19 @@ await p.keyboard.press('Escape');
 ok('viewer closes on Escape', (await p.locator('.rv-viewer').count()) === 0);
 if (process.argv[2]) await p.screenshot({ path: process.argv[2] });
 
-// a second vault gets its own section; removing it leaves the first
+// a second vault joins the same fold, with vault names before titles; removing it leaves the first
 await p.evaluate(() => window.__cmds.find((c) => c.label === 'External Vault References: Add vault folder').callback());
-await p.waitForFunction(() => document.querySelectorAll('.rv-sec').length === 2 && document.querySelectorAll('.rv-sec')[1].textContent.includes('Alpha budget'), null, { timeout: 10000 }).catch(() => {});
-const secs = await p.locator('.rv-sec').allTextContents();
-ok('second vault gets its own section', secs.length === 2 && secs[1].includes('Work Notes') && secs[1].includes('Budget for'));
+await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('Work Notes/Alpha budget'), null, { timeout: 10000 }).catch(() => {});
+const all = await p.locator('.rv-panel').textContent();
+ok('one fold for both vaults, titles prefixed with vault name', (await p.locator('.rv-sec').count()) === 1 && all.includes('5 External Vault References') && all.includes('My Vault/Projects/Project Alpha') && all.includes('Work Notes/Alpha budget') && all.includes('Budget for'));
 if (process.argv[2]) await p.screenshot({ path: process.argv[2].replace(/\.png$/, '-two-vaults.png'), fullPage: true });
 const cacheKeys = () => p.evaluate(() => new Promise((res) => { const r = indexedDB.open('roam-vaults-cache', 1); r.onsuccess = () => { const q = r.result.transaction('vaults').objectStore('vaults').getAllKeys(); q.onsuccess = () => { r.result.close(); res(q.result); }; }; }));
 await p.waitForTimeout(2500); // let the worker's debounced cache save land
 ok('second vault cached', (await cacheKeys()).includes('Work Notes'));
-await p.locator('.rv-sec').nth(1).locator('.rv-sec-head').hover();
-await p.locator('.rv-sec').nth(1).locator('.rv-tool', { hasText: 'Remove' }).click();
+await p.evaluate(() => window.__cmds.find((c) => c.label === 'External Vault References: Remove vault "Work Notes"').callback());
+
 ok('remove deletes only that vault\'s cache', await p.waitForFunction(() => true).then(async () => { await p.waitForTimeout(300); const k = await cacheKeys(); return !k.includes('Work Notes') && k.includes('My Vault'); }));
-ok('remove drops only that vault', await p.waitForFunction(() => { const s = document.querySelectorAll('.rv-sec'); return s.length === 1 && s[0].textContent.includes('My Vault'); }, null, { timeout: 3000 }).then(() => true, () => false));
+ok('remove drops only that vault', await p.waitForFunction(() => { const t = document.querySelector('.rv-panel').textContent; return !t.includes('Alpha budget') && t.includes('4 External Vault References') && !t.includes('My Vault/'); }, null, { timeout: 3000 }).then(() => true, () => false));
 
 await p.evaluate(() => window.__ext.onunload());
 ok('unload removes everything', (await p.locator('[data-roam-vaults]').count()) === 0);

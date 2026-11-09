@@ -83,8 +83,8 @@ downloaded by anyone who has it.
 - [ ] Merge Phase 1 (PR #2) and this docs PR.
 - [ ] Create a `main` branch and make it the default branch. The repo currently has no `main`, and the
       marketplace links to `source_url`.
-- [ ] Check the three draft screenshots in `docs/images/` (taken 2026-11-09 on the current UI) and
-      re-take any that change before release.
+- [ ] Check the three PNG screenshots in `docs/images/` (taken 2026-11-09, 1x) and re-take any that change
+      before release. Native Retina captures need `screencapture` on the Mac.
 - [ ] Test the Depot build: in a fresh clone run `cd extension && ./build.sh`, then load the `extension`
       folder in developer mode on a hosted graph.
 - [ ] Change "0.1.0 (unreleased)" in `extension/CHANGELOG.md` to the release date. `package.json` is
@@ -100,7 +100,7 @@ downloaded by anyone who has it.
 > **Add Vaults**
 >
 > Adds an External Vault References section that shows notes from a local Markdown folder (such as an Obsidian vault) that match or link to the current
-> Roam page, below Linked References. Several vaults are supported, one section each.
+> Roam page, below Linked References. Several vaults are supported in one section.
 >
 > - Read-only. Uses the File System Access API (`showDirectoryPicker`, read mode) on folders the user
 >   picks. Folder handles stay in local IndexedDB, never in the graph.

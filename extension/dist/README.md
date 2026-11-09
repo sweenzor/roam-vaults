@@ -9,12 +9,14 @@ vault, that are about the page you're on or link to it.
 It only reads your vault. Nothing from the vault is written to your Roam graph, and nothing is sent over the
 network.
 
-![External Vault References on a Roam page, with one section for each of two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/two-vaults.jpg)
+![External Vault References on a Roam page, listing notes from two vaults](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/one-section.png)
 
 ## What it shows
 
-Each vault you add gets its own section. Notes are titled by their path in the vault, such as
-`Projects/Kernel meeting protocol`. A section lists three kinds of notes:
+One section covers every vault you add, and its count is the total across vaults. Notes are titled by
+their path in the vault, such as `Projects/Kernel meeting protocol`. With more than one vault, the vault
+name comes first in grey, such as `work-vault/Projects/Kernel meeting protocol`. The section lists three
+kinds of notes, in this order:
 
 - **The note that is this page**, listed first and folded. A note matches when it has the same name (in any
   letter case), lists the page title as an alias, sits at the same folder path (Roam `A/B` and `A/B.md`), or
@@ -25,12 +27,12 @@ Each vault you add gets its own section. Notes are titled by their path in the v
 - **Notes tagged here.** These are notes tagged `#this-page`, shown with the tag. A Roam namespace `a/b`
   matches the nested tag `#a/b`.
 
-![The matching note, Planning, unfolded in place in the second vault's section](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/unfolded-note.jpg)
+![The matching note, work-vault/Planning, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/unfolded-note.png)
 
 Click a note title or line to read the whole note in Roam. Links between notes work inside the viewer.
 To jump to a note in Obsidian, click **Open in Obsidian** in the viewer.
 
-![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/note-viewer.jpg)
+![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/note-viewer.png)
 
 The section updates by itself. When you edit a note in Obsidian, the change shows up in Roam within about a
 second.
@@ -61,21 +63,23 @@ the extension tells you, and you need to quit and reopen Roam before you try aga
 
 ### Adding more than one vault
 
-Run **Add vault folder** again to add another vault. Each vault gets its own section, in the order you added
-them.
+Hover the **External Vault References** header and click **Add vault**, or run
+**External Vault References: Add vault folder** again. Notes from all your vaults appear in the same section,
+each title starting with its vault's name.
 
 ### Removing a vault
 
-Hover the vault's section header and click **Remove**. To remove every vault at once, run
-**External Vault References: Remove all vaults**. Removing a vault makes Roam forget the folder and deletes
+Open the command palette and run **External Vault References: Remove vault "name"**. There's one such
+command for each vault. To remove every vault at once, run **External Vault References: Remove all vaults**. Removing a vault makes Roam forget the folder and deletes
 its cache. Your files aren't touched.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| External Vault References: Add vault folder | Adds a vault. Each vault gets its own section. |
+| External Vault References: Add vault folder | Adds a vault. Also on hover in the section header. |
 | External Vault References: Rescan vaults | Reads every vault again. Only changed files are parsed. |
+| External Vault References: Remove vault "name" | Forgets that vault and deletes its cache. One command per vault. |
 | External Vault References: Remove all vaults | Forgets every vault on this computer. |
 
 ## Privacy
