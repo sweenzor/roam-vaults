@@ -83,6 +83,8 @@ downloaded by anyone who has it.
 - [ ] Merge Phase 1 (PR #2) and this docs PR.
 - [ ] Create a `main` branch and make it the default branch. The repo currently has no `main`, and the
       marketplace links to `source_url`.
+- [ ] Re-take the two screenshots in `docs/images/` once the UI is final. They predate the namespaced
+      titles and the removal of the match badge.
 - [ ] Decide the license. This PR adds MIT; swap it if you want something else.
 - [ ] Decide what `author` should say.
 - [ ] Test the Depot build: in a fresh clone run `cd extension && ./build.sh`, then load the `extension`
