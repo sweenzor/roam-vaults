@@ -341,6 +341,8 @@ var CSS = `
 .rv-unfold:hover{color:#5c3bc4}
 .rv-unfold.rv-open{transform:rotate(90deg)}
 .rv-viewer-body.rv-preview{margin:4px 0 8px 14px;padding:4px 12px 8px;border-left:2px solid #e5e5ea;background:#fff;border-radius:0 4px 4px 0;max-height:480px;overflow:auto}
+.rv-viewer-body h2{font-size:20px}.rv-viewer-body h3{font-size:17px}.rv-viewer-body h4,.rv-viewer-body h5,.rv-viewer-body h6{font-size:15px}
+.rv-preview h2,.rv-preview h3,.rv-preview h4{margin:8px 0 4px;font-weight:600}
 .bp3-dark .rv-viewer-body.rv-preview{background:transparent;color:#ddd}
 .bp3-dark .rv-panel{background:rgba(138,92,246,.08)}
 .bp3-dark .rv-line{color:#ccc}
