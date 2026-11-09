@@ -8,7 +8,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 
 const dist = path.resolve(import.meta.dirname, '../dist');
 const page = `<!doctype html><meta charset=utf-8><title>fake roam</title>
-<style>body{font:14px system-ui;margin:0}.roam-article{max-width:720px;margin:24px auto}</style>
+<style>body{font:14px system-ui;margin:0}.roam-article{max-width:720px;margin:24px auto}.rm-caret{display:inline-block;width:16px;text-align:center;color:#8a9ba8}.rm-caret-open::before{content:'▾'}.rm-caret-closed::before{content:'▸'}.flex-h-box{display:flex}</style><!-- stand-ins for Roam's caret styles -->
 <div class="roam-article"><h1 class="rm-title-display">Project Alpha</h1>
 <div class="rm-block-children"><div>• Kickoff notes</div></div>
 <div><div class="rm-reference-main">1 Linked Reference</div></div></div>`;
@@ -43,7 +43,11 @@ await p.evaluate(async (files) => {
   }
   // Headless Chromium crashes when an OPFS handle is read back from IndexedDB, so the vault is
   // connected through the picker path (stubbed) instead of a pre-saved handle.
-  window.showDirectoryPicker = async () => vault;
+  const work = await root.getDirectoryHandle('Work Notes', { create: true });
+  const w2 = await (await work.getFileHandle('Alpha budget.md', { create: true })).createWritable();
+  await w2.write('Budget for [[Project Alpha]] is approved.\n'); await w2.close();
+  const picks = [vault, work];
+  window.showDirectoryPicker = async () => picks.shift();
   console.log('seeded');
 }, files);
 p.on('crash', () => console.log('[crash]'));
@@ -58,16 +62,16 @@ await p.evaluate(async () => {
   window.__ext = ext;
   await ext.onload({ extensionAPI: { ui: { commandPalette: { addCommand: (c) => window.__cmds.push(c), removeCommand() {} } } } });
   console.log('loaded');
-  await window.__cmds.find((c) => c.label === 'Vault: Choose vault folder').callback();
+  await window.__cmds.find((c) => c.label === 'External Vault References: Add vault folder').callback();
 });
 
 const text = async () => p.locator('.rv-panel').textContent();
-await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('Linked from the vault'), null, { timeout: 10000 }).catch(async (e) => { console.log('panel now:', await p.evaluate(() => document.querySelector('.rv-panel')?.outerHTML?.slice(0, 600) ?? document.body.innerHTML.slice(0, 800))); throw e; });
+await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('see Project Alpha'), null, { timeout: 10000 }).catch(async (e) => { console.log('panel now:', await p.evaluate(() => document.querySelector('.rv-panel')?.outerHTML?.slice(0, 600) ?? document.body.innerHTML.slice(0, 800))); throw e; });
 console.log('--- panel ---\n' + await text());
 const checks = [];
 const ok = (name, cond) => { checks.push([name, !!cond]); };
 const t1 = await text();
-ok('counterpart shown', t1.includes('This page in the vault') && t1.includes('same name'));
+ok('counterpart shown', t1.includes('this page · same name'));
 ok('backlink snippet shown', t1.includes('see Project Alpha for context'));
 ok('daily backlink shown', t1.includes('2026-11-09'));
 ok('commands registered', (await p.evaluate(() => window.__cmds.length)) === 3);
@@ -76,8 +80,9 @@ ok('panel sits below Linked References', await p.evaluate(() =>
   document.querySelector('.rm-reference-main').compareDocumentPosition(document.querySelector('.rv-panel')) & Node.DOCUMENT_POSITION_FOLLOWING));
 
 // unfold the matching note inline, and follow a link inside it
-ok('counterpart folded by default', await p.locator('.rv-preview').evaluate((e) => e.hidden));
-await p.locator('.rv-unfold').click();
+ok('header uses Roam wording', t1.includes('3 External Vault References') && t1.includes('My Vault'));
+ok('counterpart folded by default', await p.locator('.rv-group').first().locator('.rv-content').evaluate((e) => e.hidden));
+await p.locator('.rv-group-caret').first().click();
 await p.waitForFunction(() => document.querySelector('.rv-preview')?.textContent.includes('Kickoff with'), null, { timeout: 5000 });
 ok('unfold shows the note inline', await p.locator('.rv-preview').evaluate((e) => !e.hidden && !!e.querySelector('h2')));
 await p.locator('.rv-preview .rv-wl', { hasText: 'Hiring neural' }).click();
@@ -96,7 +101,7 @@ ok('live update via FileSystemObserver', live);
 ok('unfolded note stays open after live update', await p.locator('.rv-preview').evaluate((e) => !e.hidden && e.textContent.includes('Kickoff with')));
 
 // viewer opens at the linked line
-await p.locator('.rv-line', { hasText: 'see Project Alpha' }).click();
+await p.locator('.rv-block', { hasText: 'see Project Alpha' }).click();
 await p.waitForSelector('.rv-viewer .rv-hl');
 ok('viewer highlights line', (await p.locator('.rv-viewer .rv-hl').textContent()).includes('see'));
 if (process.argv[2]) await p.screenshot({ path: process.argv[2].replace(/\.png$/, '-viewer.png') });
@@ -104,6 +109,16 @@ if (process.argv[2]) await p.screenshot({ path: process.argv[2].replace(/\.png$/
 await p.keyboard.press('Escape');
 ok('viewer closes on Escape', (await p.locator('.rv-viewer').count()) === 0);
 if (process.argv[2]) await p.screenshot({ path: process.argv[2] });
+
+// a second vault gets its own section; removing it leaves the first
+await p.evaluate(() => window.__cmds.find((c) => c.label === 'External Vault References: Add vault folder').callback());
+await p.waitForFunction(() => document.querySelectorAll('.rv-sec').length === 2 && document.querySelectorAll('.rv-sec')[1].textContent.includes('Alpha budget'), null, { timeout: 10000 }).catch(() => {});
+const secs = await p.locator('.rv-sec').allTextContents();
+ok('second vault gets its own section', secs.length === 2 && secs[1].includes('Work Notes') && secs[1].includes('Budget for'));
+if (process.argv[2]) await p.screenshot({ path: process.argv[2].replace(/\.png$/, '-two-vaults.png'), fullPage: true });
+await p.locator('.rv-sec').nth(1).locator('.rv-sec-head').hover();
+await p.locator('.rv-sec').nth(1).locator('.rv-tool', { hasText: 'Remove' }).click();
+ok('remove drops only that vault', await p.waitForFunction(() => { const s = document.querySelectorAll('.rv-sec'); return s.length === 1 && s[0].textContent.includes('My Vault'); }, null, { timeout: 3000 }).then(() => true, () => false));
 
 await p.evaluate(() => window.__ext.onunload());
 ok('unload removes everything', (await p.locator('[data-roam-vaults]').count()) === 0);

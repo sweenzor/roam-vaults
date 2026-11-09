@@ -1,6 +1,7 @@
-// The connected vault's directory handle, kept in this device's IndexedDB (never in
+// The connected vaults' directory handles, kept in this device's IndexedDB (never in
 // Roam settings, which sync through the graph).
-const DB = 'roam-vaults', STORE = 'handles', KEY = 'vault';
+const DB = 'roam-vaults', STORE = 'handles', KEY = 'vaults', OLD_KEY = 'vault';
+export interface SavedVault { id: string; handle: FileSystemDirectoryHandle }
 
 function open(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
@@ -20,6 +21,11 @@ async function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
   });
 }
 
-export const loadVault = () => run<FileSystemDirectoryHandle | undefined>('readonly', (s) => s.get(KEY));
-export const saveVault = (h: FileSystemDirectoryHandle) => run<void>('readwrite', (s) => s.put(h, KEY));
-export const clearVault = () => run<void>('readwrite', (s) => s.delete(KEY));
+/** Saved vaults, oldest first. Picks up the single vault saved by earlier versions. */
+export async function loadVaults(): Promise<SavedVault[]> {
+  const list = await run<SavedVault[] | undefined>('readonly', (s) => s.get(KEY));
+  if (list) return list;
+  const old = await run<FileSystemDirectoryHandle | undefined>('readonly', (s) => s.get(OLD_KEY));
+  return old ? [{ id: old.name, handle: old }] : [];
+}
+export const saveVaults = (list: SavedVault[]) => run<void>('readwrite', (s) => { s.delete(OLD_KEY); return s.put(list, KEY); });

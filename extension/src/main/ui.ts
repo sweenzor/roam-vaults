@@ -1,34 +1,43 @@
-// DOM pieces: styles, toasts, the "Vault references" panel and the read-only note viewer.
+// DOM pieces: styles, toasts, the "External Vault References" panel and the read-only note viewer.
 // Plain DOM with Blueprint 3 class names (Roam ships Blueprint), so no bundled UI library.
 import type { PageResult } from '../engine.ts';
 import { renderMarkdown, inline } from './markdown.ts';
 
 export const ATTR = 'data-roam-vaults';
 
-const CSS = `
-.rv-panel{margin:12px 0 18px;border:1px solid rgba(138,92,246,.35);border-left:3px solid #8a5cf6;border-radius:6px;padding:8px 12px;font-size:14px;background:rgba(138,92,246,.04)}
-.rv-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;color:#5c3bc4;font-weight:600}
-.rv-head .rv-caret{width:12px;display:inline-block;transition:transform .1s}
-.rv-panel.rv-collapsed .rv-caret{transform:rotate(-90deg)}
-.rv-panel.rv-collapsed .rv-body{display:none}
-.rv-head .rv-meta{font-weight:400;color:#8a8a99;font-size:12px}
-.rv-head .rv-spacer{flex:1}
-.rv-body{margin-top:6px}
-.rv-sec{margin-top:8px}
-.rv-sec-title{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#8a8a99;margin-bottom:4px}
-.rv-row{display:flex;align-items:baseline;gap:8px;padding:2px 0;flex-wrap:wrap}
-.rv-note{color:#106ba3;cursor:pointer;font-weight:500}
+const STYLES = `
+.rv-panel{padding-top:12px;margin:0 -4px 0 -16px}
+.rv-sec{margin-bottom:12px}
+.rv-sec-head{display:flex;align-items:center;height:24px;gap:2px;cursor:pointer;user-select:none}
+.rv-sec-head strong{color:rgb(206,217,224)}
+.rv-sec-head .rv-head-caret{visibility:hidden}
+.rv-sec-head:hover .rv-head-caret{visibility:visible;opacity:1}
+.rv-meta{color:rgb(206,217,224);font-size:12px;margin-left:8px}
+.rv-spacer{flex:1}
+.rv-tool{visibility:hidden;color:#8a9ba8 !important;font-size:12px}
+.rv-sec-head:hover .rv-tool{visibility:visible}
+.rv-sec.rv-collapsed .rv-sec-body{display:none}
+.rv-sec-body{margin-top:4px}
+.rv-empty{color:#8a9ba8;font-size:13px;padding:2px 0 2px 16px}
+.rv-group{margin-bottom:10px}
+.rv-group-head{align-items:center;gap:2px;flex-wrap:wrap}
+.rv-group-caret{cursor:pointer}
+.rv-group-title{margin-right:8px}
+.rv-note{cursor:pointer;color:#106ba3}
 .rv-note:hover{text-decoration:underline}
-.rv-path{color:#8a8a99;font-size:12px}
-.rv-badge{font-size:11px;border-radius:3px;padding:0 5px;background:#ede7fd;color:#5c3bc4}
+.rv-path{color:#a7b6c2;font-size:12px;margin-right:8px}
+.rv-badge{font-size:11px;border-radius:3px;padding:0 5px;margin-right:8px;background:#ebf1f5;color:#5c7080}
 .rv-badge.rv-warn{background:#fdf0d5;color:#8a5a00}
-.rv-lines{margin:0 0 6px 14px;padding-left:10px;border-left:2px solid #e5e5ea}
-.rv-line{color:#333;font-size:13px;padding:1px 0;cursor:pointer;white-space:pre-wrap;word-break:break-word}
-.rv-line:hover{background:rgba(138,92,246,.08)}
-.rv-line .rv-wl{color:#106ba3}.rv-line .rv-tag{color:#5c3bc4}.rv-line code{font-size:12px}
-.rv-empty{color:#8a8a99;font-size:13px}
-.rv-link{font-size:12px;color:#8a8a99;cursor:pointer}
+.rv-link{font-size:12px;color:#a7b6c2;cursor:pointer;visibility:hidden}
+.rv-group-head:hover .rv-link{visibility:visible}
 .rv-link:hover{color:#106ba3;text-decoration:underline}
+.rv-content{margin-left:20px}
+.rv-block{display:flex;align-items:flex-start;padding:2px 0;cursor:pointer;border-radius:3px}
+.rv-block:hover{background:rgba(16,107,163,.05)}
+.rv-bullet{flex:0 0 auto;width:20px;height:24px;display:flex;align-items:center;justify-content:center}
+.rv-bullet::before{content:'';width:6px;height:6px;border-radius:50%;background:#5c7080}
+.rv-block-text{flex:1;line-height:24px;white-space:pre-wrap;word-break:break-word}
+.rv-block-text .rv-wl{color:#106ba3}.rv-block-text .rv-tag{color:#106ba3}.rv-block-text code{font-size:12px}
 .rv-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:30000;max-width:560px;padding:10px 14px;border-radius:6px;background:#30404d;color:#fff;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
 .rv-toast.rv-error{background:#a82a2a}
 .rv-overlay{position:fixed;inset:0;z-index:20000;background:rgba(16,22,26,.45);display:flex;align-items:center;justify-content:center}
@@ -49,21 +58,17 @@ const CSS = `
 .rv-viewer-body .rv-props{font-size:12px;color:#5c7080;background:#f5f8fa;border-radius:4px;padding:6px 10px;margin:8px 0}
 .rv-viewer-body .rv-hl{background:#fff3b0;border-radius:3px}
 .rv-viewer-body blockquote{border-left:3px solid #d8e1e8;margin:4px 0;padding-left:10px;color:#5c7080}
-.rv-unfold{width:14px;display:inline-block;cursor:pointer;color:#8a8a99;user-select:none;transition:transform .1s}
-.rv-unfold:hover{color:#5c3bc4}
-.rv-unfold.rv-open{transform:rotate(90deg)}
-.rv-viewer-body.rv-preview{margin:4px 0 8px 14px;padding:4px 12px 8px;border-left:2px solid #e5e5ea;background:#fff;border-radius:0 4px 4px 0;max-height:480px;overflow:auto}
+.rv-viewer-body.rv-preview{margin:2px 0 4px;padding:2px 12px 4px;border-left:1px solid #e1e8ed;max-height:480px;overflow:auto}
 .rv-viewer-body h2{font-size:20px}.rv-viewer-body h3{font-size:17px}.rv-viewer-body h4,.rv-viewer-body h5,.rv-viewer-body h6{font-size:15px}
 .rv-preview h2,.rv-preview h3,.rv-preview h4{margin:8px 0 4px;font-weight:600}
 .bp3-dark .rv-viewer-body.rv-preview{background:transparent;color:#ddd}
-.bp3-dark .rv-panel{background:rgba(138,92,246,.08)}
-.bp3-dark .rv-line{color:#ccc}
+.bp3-dark .rv-sec-head strong,.bp3-dark .rv-meta{color:#5c7080}
 `;
 
 export function installStyles(): () => void {
   const el = document.createElement('style');
   el.setAttribute(ATTR, 'style');
-  el.textContent = CSS;
+  el.textContent = STYLES;
   document.head.append(el);
   return () => el.remove();
 }
@@ -93,110 +98,140 @@ export function notify(text: string, kind: 'info' | 'error' = 'info', ms = 5000)
 export function removeToast() { toastEl?.remove(); clearTimeout(toastTimer); }
 
 // ---------- panel ----------
-export type PanelState =
-  | { kind: 'none' }
-  | { kind: 'permission'; vault: string }
-  | { kind: 'indexing'; vault: string; detail: string }
-  | { kind: 'error'; vault: string; detail: string }
-  | { kind: 'ready'; vault: string; result: PageResult | null; live: boolean };
+// One panel per Roam reference area, holding one "External Vault References" section per
+// connected vault. Laid out like Roam's own Linked References: a grey bold header with a
+// caret, then one group per note (caret + note title), and the note's lines as bullets.
+export type SectionState =
+  | { kind: 'permission' }
+  | { kind: 'indexing'; detail: string }
+  | { kind: 'error'; detail: string }
+  | { kind: 'ready'; result: PageResult | null; live: boolean };
 
-export interface PanelActions {
-  choose(): void;
+export interface SectionActions {
   reconnect(): void;
+  remove(): void;
   view(path: string, line?: number): void;
   openInObsidian(path: string): void;
   read(path: string): Promise<string>;
   resolve(target: string, from: string): Promise<string | null>;
 }
+export interface PanelVault { id: string; name: string; state: SectionState; act: SectionActions }
 
-/** Counterpart notes the user unfolded. Kept across re-renders (live updates, navigation). */
-const unfolded = new Set<string>();
+const COLLAPSE_KEY = 'roam-vaults:collapsed:';
+const isCollapsed = (id: string) => { try { return localStorage.getItem(COLLAPSE_KEY + id) === '1'; } catch { return false; } };
+/** Note groups the user opened or closed, overriding the default. Kept across re-renders. */
+const groupOpen = new Map<string, boolean>();
 
-const COLLAPSE_KEY = 'roam-vaults:collapsed';
-const collapsed = () => { try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; } };
+const caret = (open: boolean, extra = '') =>
+  h('span', { class: `bp3-icon-standard bp3-icon-caret-down rm-caret ${open ? 'rm-caret-open' : 'rm-caret-closed'} ${extra}` });
 
-export function renderPanel(el: HTMLElement, s: PanelState, act: PanelActions) {
-  el.className = 'rv-panel' + (collapsed() ? ' rv-collapsed' : '');
-  const toggle = () => {
-    const now = !el.classList.contains('rv-collapsed');
-    try { localStorage.setItem(COLLAPSE_KEY, now ? '1' : '0'); } catch { /* private mode */ }
-    document.querySelectorAll<HTMLElement>(`.rv-panel[${ATTR}]`).forEach((p) => p.classList.toggle('rv-collapsed', now));
-  };
-  const btn = (label: string, fn: () => void) => h('button', { class: 'bp3-button bp3-small', onclick: (e: Event) => { e.stopPropagation(); fn(); } }, label);
-
-  let meta = '';
-  let body: HTMLElement;
-  if (s.kind === 'none') {
-    body = h('div', { class: 'rv-empty' }, 'Connect a folder of Markdown notes, such as an Obsidian vault, to see its notes about this page. ', btn('Choose vault folder', act.choose));
-  } else if (s.kind === 'permission') {
-    body = h('div', { class: 'rv-empty' }, `Roam needs permission to read "${s.vault}" again. `, btn('Reconnect', act.reconnect));
-  } else if (s.kind === 'indexing') {
-    meta = `${s.vault} · indexing ${s.detail}`;
-    body = h('div', { class: 'rv-empty' }, 'Reading the vault…');
-  } else if (s.kind === 'error') {
-    meta = s.vault;
-    body = h('div', { class: 'rv-empty' }, `Couldn't read the vault: ${s.detail} `, btn('Choose vault folder', act.choose));
-  } else {
-    const r = s.result;
-    const n = r ? r.counterparts.length + r.backlinks.length + r.tagged.length : 0;
-    meta = `${s.vault} · ${n ? `${n} note${n === 1 ? '' : 's'}` : 'nothing yet'}${s.live ? '' : ' · not live'}`;
-    body = r && n ? resultBody(r, act) : h('div', { class: 'rv-empty' }, 'No vault notes match or link to this page.');
+export function renderPanel(el: HTMLElement, vaults: PanelVault[], choose: () => void) {
+  el.className = 'rv-panel';
+  if (!vaults.length) {
+    el.replaceChildren(h('div', { class: 'rv-sec' },
+      sectionHead(null, 'External Vault References', ''),
+      h('div', { class: 'rv-empty' },
+        'Add a folder of Markdown notes, such as an Obsidian vault, to see its notes about this page. ',
+        h('button', { class: 'bp3-button bp3-small', onclick: choose }, 'Add vault folder'))));
+    return;
   }
-  el.replaceChildren(
-    h('div', { class: 'rv-head', onclick: toggle },
-      h('span', { class: 'rv-caret' }, '▾'), 'Vault references', h('span', { class: 'rv-meta' }, meta), h('span', { class: 'rv-spacer' })),
-    h('div', { class: 'rv-body' }, body),
-  );
+  el.replaceChildren(...vaults.map((v) => section(v)));
 }
 
-function resultBody(r: PageResult, act: PanelActions): HTMLElement {
-  const out = h('div');
-  const noteLink = (path: string, title: string, line?: number) =>
-    h('span', { class: 'rv-note', title: path, onclick: () => act.view(path, line) }, title);
-  const obsidian = (path: string) => h('span', { class: 'rv-link', title: 'Open this note in Obsidian', onclick: () => act.openInObsidian(path) }, 'Open in Obsidian');
-  const folder = (path: string) => { const i = path.lastIndexOf('/'); return i < 0 ? null : h('span', { class: 'rv-path' }, path.slice(0, i)); };
+function sectionHead(v: PanelVault | null, label: string, meta: string, open = true, tools: HTMLElement[] = []) {
+  const head = h('div', { class: 'rv-sec-head' },
+    caret(open, 'rv-head-caret'),
+    h('strong', {}, label),
+    meta ? h('span', { class: 'rv-meta' }, meta) : null,
+    h('span', { class: 'rv-spacer' }),
+    ...tools);
+  if (v) head.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    const now = !isCollapsed(v.id);
+    try { localStorage.setItem(COLLAPSE_KEY + v.id, now ? '1' : '0'); } catch { /* private mode */ }
+    document.querySelectorAll<HTMLElement>(`.rv-sec[data-vault="${CSS.escape(v.id)}"]`).forEach((s) => {
+      s.classList.toggle('rv-collapsed', now);
+      s.querySelector('.rv-head-caret')?.classList.replace(now ? 'rm-caret-open' : 'rm-caret-closed', now ? 'rm-caret-closed' : 'rm-caret-open');
+    });
+  });
+  return head;
+}
 
-  if (r.counterparts.length) {
-    const ambiguous = r.counterparts.length > 1;
-    out.append(h('div', { class: 'rv-sec' },
-      h('div', { class: 'rv-sec-title' }, ambiguous ? `This page in the vault (${r.counterparts.length} candidates)` : 'This page in the vault'),
-      ...r.counterparts.map((c) => {
-        const preview = h('div', { class: 'rv-viewer-body rv-preview' });
-        const caret = h('span', { class: 'rv-unfold', role: 'button', 'aria-expanded': 'false', title: 'Show this note here' }, '▸');
-        const set = (open: boolean) => {
-          caret.classList.toggle('rv-open', open);
-          caret.setAttribute('aria-expanded', String(open));
-          caret.title = open ? 'Hide this note' : 'Show this note here';
-          preview.hidden = !open;
-          if (open) { unfolded.add(c.path); if (!preview.childNodes.length) loadPreview(preview, c.path, act); } else unfolded.delete(c.path);
-        };
-        caret.addEventListener('click', () => set(preview.hidden));
-        set(unfolded.has(c.path));
-        return h('div', {},
-          h('div', { class: 'rv-row' },
-            caret, noteLink(c.path, c.title), folder(c.path),
-            h('span', { class: 'rv-badge' + (c.how === 'case' ? ' rv-warn' : '') }, c.label),
-            obsidian(c.path)),
-          preview);
-      })));
+function section(v: PanelVault): HTMLElement {
+  const s = v.state, act = v.act;
+  const tool = (label: string, title: string, fn: () => void) =>
+    h('button', { class: 'bp3-button bp3-minimal bp3-small rv-tool', title, onclick: (e: Event) => { e.stopPropagation(); fn(); } }, label);
+  let count = '', meta = v.name, body: HTMLElement;
+  if (s.kind === 'permission') {
+    body = h('div', { class: 'rv-empty' }, `Roam needs permission to read "${v.name}" again. `,
+      h('button', { class: 'bp3-button bp3-small', onclick: act.reconnect }, 'Reconnect'));
+  } else if (s.kind === 'indexing') {
+    meta += ` · indexing ${s.detail}`;
+    body = h('div', { class: 'rv-empty' }, 'Reading the vault…');
+  } else if (s.kind === 'error') {
+    body = h('div', { class: 'rv-empty' }, `Couldn't read this vault: ${s.detail}`);
+  } else {
+    const r = s.result;
+    const n = r ? new Set([...r.counterparts, ...r.backlinks, ...r.tagged].map((x) => x.path)).size : 0;
+    count = `${n} `;
+    if (!s.live) meta += ' · not live';
+    body = r && n ? resultBody(v.id, r, act) : h('div', { class: 'rv-empty' }, 'No notes in this vault match or link to this page.');
   }
-  if (r.backlinks.length) {
-    out.append(h('div', { class: 'rv-sec' },
-      h('div', { class: 'rv-sec-title' }, `Linked from the vault (${r.backlinks.length})`),
-      ...r.backlinks.map((b) => h('div', {},
-        h('div', { class: 'rv-row' }, noteLink(b.path, b.title, b.lines[0]?.line), folder(b.path)),
-        h('div', { class: 'rv-lines' }, ...b.lines.map((l) =>
-          snippetEl(l.text, () => act.view(b.path, l.line), l.line)))))));
-  }
-  if (r.tagged.length) {
-    out.append(h('div', { class: 'rv-sec' },
-      h('div', { class: 'rv-sec-title' }, `Tagged in the vault (${r.tagged.length})`),
-      ...r.tagged.map((t) => h('div', { class: 'rv-row' }, noteLink(t.path, t.title), folder(t.path), h('span', { class: 'rv-badge' }, `#${t.tag}`)))));
-  }
+  const collapsed = isCollapsed(v.id);
+  return h('div', { class: 'rv-sec' + (collapsed ? ' rv-collapsed' : ''), 'data-vault': v.id },
+    sectionHead(v, `${count}External Vault References`, meta, !collapsed,
+      [tool('Remove', `Stop showing "${v.name}" in this graph on this device`, act.remove)]),
+    h('div', { class: 'rv-sec-body' }, body));
+}
+
+function resultBody(vid: string, r: PageResult, act: SectionActions): HTMLElement {
+  const out = h('div', { class: 'rv-groups' });
+  const folder = (path: string) => { const i = path.lastIndexOf('/'); return i < 0 ? null : h('span', { class: 'rv-path' }, path.slice(0, i)); };
+  /** One note: caret + title (+ folder, badges, Obsidian link); content shows when open. */
+  const group = (key: string, path: string, title: string, defOpen: boolean, extras: (Node | null)[], content: () => HTMLElement) => {
+    const k = `${vid}\n${key}\n${path}`;
+    const box = h('div', { class: 'rv-content' });
+    const c = caret(false, 'rm-caret-showing rv-group-caret');
+    const set = (open: boolean) => {
+      c.classList.toggle('rm-caret-open', open); c.classList.toggle('rm-caret-closed', !open);
+      box.hidden = !open;
+      if (open && !box.childNodes.length) box.append(content());
+    };
+    c.addEventListener('click', () => { const open = box.hidden; groupOpen.set(k, open); set(open); });
+    set(groupOpen.get(k) ?? defOpen);
+    return h('div', { class: 'rv-group' },
+      h('div', { class: 'flex-h-box rv-group-head' }, c,
+        h('div', { class: 'rm-ref-page-view-title rv-group-title' },
+          h('span', { class: 'rv-note', title: path, onclick: () => act.view(path) }, title)),
+        folder(path), ...extras,
+        h('span', { class: 'rv-link', title: 'Open this note in Obsidian', onclick: () => act.openInObsidian(path) }, 'Open in Obsidian')),
+      box);
+  };
+  const preview = (path: string) => () => { const el = h('div', { class: 'rv-viewer-body rv-preview' }); loadPreview(el, path, act); return el; };
+
+  // A note shows once: a tagged note that also links here gets the tag as a badge.
+  const tags = new Map(r.tagged.map((t) => [t.path, t.tag]));
+  const tagBadge = (path: string) => { const t = tags.get(path); tags.delete(path); return t ? h('span', { class: 'rv-badge' }, `#${t}`) : null; };
+  for (const c of r.counterparts)
+    out.append(group('page', c.path, c.title, false,
+      [h('span', { class: 'rv-badge' + (c.how === 'case' ? ' rv-warn' : ''), title: 'This note is this page' }, `this page · ${c.label}`), tagBadge(c.path)],
+      preview(c.path)));
+  for (const b of r.backlinks)
+    out.append(group('links', b.path, b.title, true, [tagBadge(b.path)],
+      () => h('div', {}, ...b.lines.map((l) => blockEl(l.text, () => act.view(b.path, l.line), l.line)))));
+  for (const t of r.tagged) if (tags.has(t.path))
+    out.append(group('tag', t.path, t.title, false, [tagBadge(t.path)], preview(t.path)));
   return out;
 }
 
-async function loadPreview(el: HTMLElement, path: string, act: PanelActions) {
+/** A linking line, drawn like a Roam block (bullet + text). Click opens the note at that line. */
+function blockEl(text: string, onclick: () => void, line: number) {
+  const t = h('div', { class: 'rv-block-text' });
+  if (text) inline(t, text); else t.append('(link)');
+  return h('div', { class: 'rv-block', title: `Line ${line + 1}`, onclick }, h('span', { class: 'rv-bullet' }), t);
+}
+
+async function loadPreview(el: HTMLElement, path: string, act: SectionActions) {
   el.append('Loading…');
   try {
     el.replaceChildren(renderMarkdown(await act.read(path)));
@@ -209,17 +244,12 @@ async function loadPreview(el: HTMLElement, path: string, act: PanelActions) {
 /** Make [[links]] in rendered note text open their target note (in the viewer). */
 function wireLinks(el: HTMLElement, from: string, open: (to: string) => void, resolve: (t: string, f: string) => Promise<string | null>) {
   el.querySelectorAll<HTMLElement>('.rv-wl[data-target]').forEach((a) => {
-    a.addEventListener('click', async () => {
+    a.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const to = await resolve(a.dataset.target!, from);
       if (to) open(to); else { a.classList.add('rv-missing'); a.title = 'No such note in the vault'; }
     });
   });
-}
-
-function snippetEl(text: string, onclick: () => void, line: number) {
-  const el = h('div', { class: 'rv-line', title: `Line ${line + 1}`, onclick });
-  if (text) inline(el, text); else el.append('(link)');
-  return el;
 }
 
 // ---------- viewer ----------
