@@ -41,7 +41,7 @@ export function renderSettings(el: HTMLElement, m: SettingsModel) {
 export function createSettingsPanel(extensionAPI: any, m: SettingsModel) {
   if (!extensionAPI?.settings?.panel?.create) return;
   const React = (window as any).React;
-  const description = 'Obsidian-style vaults (folders of Markdown notes) shown in External Vault References.';
+  const description = 'Obsidian-style vaults (folders of Markdown notes) shown as "External Vault References".';
   if (React?.createElement && React.useRef && React.useEffect) {
     const VaultList = () => {
       const ref = React.useRef(null);

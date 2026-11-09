@@ -66,7 +66,7 @@ second.
 2. Open **Settings → Roam Depot → Vaults**.
 3. Click **Add vault folder**, choose your vault folder, and allow access when asked.
 
-Matching notes then show up in an **External Vault References** section below Linked References. The
+Matching notes then show up below Linked References, as **"External Vault References"**. The
 section appears only on pages that have matching vault notes. Other pages look exactly as before. The first
 scan of a large vault takes a few seconds. After that, only changed files are read again.
 

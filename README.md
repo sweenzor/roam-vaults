@@ -4,7 +4,7 @@ See notes from your Obsidian-style vaults in your Roam graph.
 
 Vaults is a Roam Research extension. An Obsidian-style vault is a local folder of linked Markdown notes,
 such as an Obsidian vault or an Open Knowledge Format (OKF) bundle. On any Roam page, Vaults shows which
-vault notes match the page or link to it, in an **External Vault References** section kept separate from
+vault notes match the page or link to it, as **"External Vault References"**, kept separate from
 Roam's own references. You can read any note in Roam.
 
 **Status:** version 0.1.0 is in [`extension/`](extension/): one or more vaults in a single External Vault
