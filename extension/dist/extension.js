@@ -441,7 +441,7 @@ function renderPanel(el, vaults2, add) {
       h("div", { class: "rv-sec-body" }, h(
         "div",
         { class: "rv-empty" },
-        "Add a folder of Markdown notes, such as an Obsidian vault, to see its notes about this page. ",
+        "Add an Obsidian-style vault (a folder of Markdown notes) to see its notes about this page. ",
         h("button", { class: "bp3-button bp3-small", onclick: add }, "Add vault folder")
       ))
     ));

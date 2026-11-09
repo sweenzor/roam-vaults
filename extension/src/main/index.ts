@@ -1,4 +1,4 @@
-// External Vault References: shows notes from local Markdown vaults (Obsidian) that match or
+// Vaults: shows notes from Obsidian-style vaults (local Markdown folders) that match or
 // link to the Roam page you are on. Read-only; nothing is written to the graph; no network.
 import { loadVaults, saveVaults, deleteCache } from './store.ts';
 import { pickVaultFolder, ensurePermission } from './picker.ts';

@@ -27,9 +27,9 @@ that only touch `.md` or image files are published without resetting the "code u
 | Field | Required | Our value |
 |---|---|---|
 | `name` | yes | Vaults (the section it adds in Roam is called External Vault References) |
-| `short_description` | yes | One line, shown in the marketplace list |
+| `short_description` | yes | See notes from your Obsidian-style vaults in your Roam graph. |
 | `author` | yes | Matt Sweeney (same as Autopin) |
-| `tags` | no | obsidian, markdown, vault, references, backlinks |
+| `tags` | no | obsidian, markdown, vault, okf, references, backlinks |
 | `source_url` | yes | https://github.com/sweenzor/roam-vaults |
 | `source_repo` | yes | https://github.com/sweenzor/roam-vaults.git |
 | `source_commit` | yes | The exact commit that is reviewed and published |
@@ -99,8 +99,9 @@ downloaded by anyone who has it.
 
 > **Add Vaults**
 >
-> Adds an External Vault References section that shows notes from a local Markdown folder (such as an Obsidian vault) that match or link to the current
-> Roam page, below Linked References. Several vaults are supported in one section.
+> See notes from your Obsidian-style vaults in your Roam graph. Vaults adds an External Vault References
+> section below Linked References that shows notes from local Markdown folders (Obsidian vaults, OKF
+> bundles and similar) that match or link to the current Roam page. Several vaults are supported in one section.
 >
 > - Read-only. Uses the File System Access API (`showDirectoryPicker`, read mode) on folders the user
 >   picks. Folder handles stay in local IndexedDB, never in the graph.

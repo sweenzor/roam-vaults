@@ -3,8 +3,8 @@
 See notes from your Obsidian-style vaults in your Roam graph.
 
 Vaults adds an **External Vault References** section to every Roam page. It sits below Linked and
-Unlinked References and looks like them. It lists the notes in a local Markdown folder, such as an Obsidian
-vault, that are about the page you're on or link to it.
+Unlinked References and looks like them. It lists the notes in your Obsidian-style vaults, meaning local
+folders of Markdown notes, that are about the page you're on or link to it.
 
 It only reads your vault. Nothing from the vault is written to your Roam graph, and nothing is sent over the
 network.
@@ -45,11 +45,11 @@ kinds of notes, in this order:
 ![The matching note, work-vault/Planning, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/unfolded-note.png)
 
 Click a note title or line to read the whole note in Roam. Links between notes work inside the viewer.
-To jump to a note in Obsidian, click **Open in Obsidian** in the viewer.
+If you use Obsidian, click **Open in Obsidian** in the viewer to jump to the note there.
 
 ![The note viewer, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/v0.1.0/docs/images/note-viewer.png)
 
-The section updates by itself. When you edit a note in Obsidian, the change shows up in Roam within about a
+The section updates by itself. When you edit a note in Obsidian or any other editor, the change shows up in Roam within about a
 second.
 
 ## Requirements
@@ -124,7 +124,7 @@ snapshot for a vault you wouldn't want shared that way.
 ## Limits in this version
 
 - Matching uses the exact rules above. Fuzzy or "similar title" matches aren't shown yet.
-- Notes are shown as read-only previews. Edit them in Obsidian.
+- Notes are shown as read-only previews. Edit them in Obsidian or your usual editor.
 - Only `.md` files are read. Canvas files, PDFs and attachments are skipped.
 
 ## Feedback and source

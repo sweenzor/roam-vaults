@@ -2,7 +2,7 @@
 
 ## 0.1.0 (2026-11-09)
 
-First release of Vaults.
+First release of Vaults: see notes from your Obsidian-style vaults in your Roam graph.
 
 - Adds an **External Vault References** section below Linked and Unlinked References on every page,
   styled like them.
