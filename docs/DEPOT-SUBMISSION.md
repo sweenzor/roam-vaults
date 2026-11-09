@@ -28,7 +28,7 @@ that only touch `.md` or image files are published without resetting the "code u
 |---|---|---|
 | `name` | yes | External Vault References |
 | `short_description` | yes | One line, shown in the marketplace list |
-| `author` | yes | Shown to users. Draft says `sweenzor`; use your display name if you prefer |
+| `author` | yes | Matt Sweeney (same as Autopin) |
 | `tags` | no | obsidian, markdown, vault, references, backlinks |
 | `source_url` | yes | https://github.com/sweenzor/roam-vaults |
 | `source_repo` | yes | https://github.com/sweenzor/roam-vaults.git |
@@ -85,8 +85,6 @@ downloaded by anyone who has it.
       marketplace links to `source_url`.
 - [ ] Re-take the two screenshots in `docs/images/` once the UI is final. They predate the namespaced
       titles and the removal of the match badge.
-- [ ] Decide the license. This PR adds MIT; swap it if you want something else.
-- [ ] Decide what `author` should say.
 - [ ] Test the Depot build: in a fresh clone run `cd extension && ./build.sh`, then load the `extension`
       folder in developer mode on a hosted graph.
 - [ ] Change "0.1.0 (unreleased)" in `extension/CHANGELOG.md` to the release date. `package.json` is

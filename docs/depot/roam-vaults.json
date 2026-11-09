@@ -1,7 +1,7 @@
 {
   "name": "External Vault References",
   "short_description": "See notes from your Obsidian vaults that match or link to the current page, below Linked References.",
-  "author": "sweenzor",
+  "author": "Matt Sweeney",
   "tags": ["obsidian", "markdown", "vault", "references", "backlinks"],
   "source_url": "https://github.com/sweenzor/roam-vaults",
   "source_repo": "https://github.com/sweenzor/roam-vaults.git",
