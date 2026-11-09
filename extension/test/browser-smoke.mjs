@@ -70,8 +70,11 @@ await p.evaluate(async () => {
   const comp = window.__settings.settings[0].action.component; comp();
   window.__settingsRef.current = box; window.__effects.forEach((fn) => fn());
   console.log('loaded');
-  await window.__cmds.find((c) => c.label === 'External Vault References: Add vault folder').callback();
 });
+// with no vaults the page shows nothing, and there are no palette commands (so no hotkeys)
+await p.waitForTimeout(300);
+const emptyPanel = await p.evaluate(() => [...document.querySelectorAll('.rv-panel')].every((e) => !e.textContent.trim()));
+await p.evaluate(() => [...document.querySelectorAll('#settings-box button')].find((b) => b.textContent === 'Add vault folder').click());
 
 const text = async () => p.locator('.rv-panel').textContent();
 await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('see [[Project Alpha]]'), null, { timeout: 10000 }).catch(async (e) => { console.log('panel now:', await p.evaluate(() => document.querySelector('.rv-panel')?.outerHTML?.slice(0, 600) ?? document.body.innerHTML.slice(0, 800))); throw e; });
@@ -85,7 +88,9 @@ ok('no Open in Obsidian link on the page itself', !(await p.locator('.rv-panel')
 ok('backlink snippet shown', t1.includes('see [[Project Alpha]] for context'));
 ok('wikilinks keep faint brackets like Roam', (await p.locator('.rv-block .rv-br').count()) > 0 && (await p.locator('.rv-block', { hasText: 'the alpha project' }).locator('.rv-br').count()) === 0);
 ok('daily backlink shown', t1.includes('2026-11-09'));
-ok('commands registered', (await p.evaluate(() => window.__cmds.length)) === 3);
+ok('no palette commands', (await p.evaluate(() => window.__cmds.length)) === 0);
+ok('nothing on the page before a vault is added', emptyPanel);
+ok('settings offers Rescan once a vault exists', (await p.locator('#settings-box button', { hasText: 'Rescan' }).count()) === 1);
 ok('settings tab registered with a vault list', await p.evaluate(() => window.__settings.tabTitle === 'External Vault References' && window.__settings.settings[0].action.type === 'reactComponent'));
 await p.waitForFunction(() => document.querySelector('#settings-box')?.textContent.includes('notes'), null, { timeout: 5000 }).catch(() => {});
 ok('settings list shows the vault and its note count', /My Vault3 notes/.test(await p.locator('#settings-box').textContent()));
@@ -125,7 +130,7 @@ ok('viewer closes on Escape', (await p.locator('.rv-viewer').count()) === 0);
 if (process.argv[2]) await p.screenshot({ path: process.argv[2] });
 
 // a second vault joins the same fold, with vault names before titles; removing it leaves the first
-await p.evaluate(() => window.__cmds.find((c) => c.label === 'External Vault References: Add vault folder').callback());
+await p.locator('#settings-box button', { hasText: 'Add vault folder' }).click();
 await p.waitForFunction(() => document.querySelector('.rv-panel')?.textContent.includes('Work Notes/Alpha budget'), null, { timeout: 10000 }).catch(() => {});
 const all = await p.locator('.rv-panel').textContent();
 ok('one fold for both vaults, titles prefixed with vault name', (await p.locator('.rv-sec').count()) === 1 && all.includes('5 External Vault References') && all.includes('My Vault/Projects/Project Alpha') && all.includes('Work Notes/Alpha budget') && all.includes('Budget for'));

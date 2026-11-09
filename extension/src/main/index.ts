@@ -121,14 +121,6 @@ async function removeVault(v: Vault) {
   refreshAll();
   notify(`Removed external vault "${v.name}". The folder itself is untouched.`);
 }
-async function removeAll() {
-  vaults.forEach((v) => v.stop());
-  await Promise.all(vaults.map(dropCache));
-  vaults = [];
-  await save();
-  refreshAll();
-  notify('Removed all external vaults.');
-}
 
 // ---------- which Roam page is each panel for? ----------
 async function openPageTitle(): Promise<string | null> {
@@ -154,7 +146,7 @@ async function fill(panel: HTMLElement) {
   const states = await Promise.all(snapshot.map(async (v): Promise<PanelVault> =>
     v.state.kind === 'ready' ? { id: v.id, name: v.name, act: v.act, state: { ...v.state, result: await v.query(title) } } : v));
   if (panel.dataset.title !== title || !panel.isConnected) return;
-  renderPanel(panel, states, addVault);
+  renderPanel(panel, states);
 }
 function refreshAll() {
   document.querySelectorAll<HTMLElement>(`.rv-panel[${ATTR}]`).forEach(fill);
@@ -192,18 +184,11 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
   cleanups.push(installStyles());
   workerUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }));
 
-  const cmds: [string, () => void][] = [
-    ['External Vault References: Add vault folder', addVault],
-    ['External Vault References: Rescan vaults', () => vaults.forEach((v) => v.call('rescan').catch((e) => notify(e.message, 'error')))],
-    ['External Vault References: Remove all vaults', removeAll],
-  ];
-  for (const [label, callback] of cmds) {
-    extensionAPI.ui.commandPalette.addCommand({ label, callback });
-    cleanups.push(() => extensionAPI.ui.commandPalette.removeCommand({ label }));
-  }
+  // No command palette entries (so no hotkeys either): vaults are managed in the settings panel.
   createSettingsPanel(extensionAPI, {
     vaults: () => vaults.map(settingsVault),
     add: addVault,
+    rescan: () => vaults.forEach((v) => v.call('rescan').catch((e) => notify(e.message, 'error'))),
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
   });
   cleanups.push(() => listeners.clear());
