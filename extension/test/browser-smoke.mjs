@@ -178,6 +178,23 @@ const mountSettings = (q) => q.evaluate(() => {
 });
 const press = (q, label) => q.evaluate((label) => [...document.querySelectorAll('#settings-box button')].find((b) => b.textContent === label).click(), label);
 const row = (q) => q.locator('#settings-box .rv-settings-row').textContent();
+// Roam gives a setting's control a narrow column (about 225 px in a 1024 px window). Every button must stay
+// inside it and keep its whole label. The stub gives buttons Blueprint's small minimum width.
+const fits = (q, width) => q.evaluate((width) => {
+  if (!document.querySelector('#bp-stub')) {
+    const s = document.createElement('style'); s.id = 'bp-stub';
+    s.textContent = '.bp3-button{display:inline-flex;align-items:center;min-width:24px;min-height:24px;padding:0 7px;font:14px sans-serif;border:0}';
+    document.head.append(s);
+  }
+  const box = document.querySelector('#settings-box');
+  box.style.width = `${width}px`;
+  const edge = box.getBoundingClientRect();
+  const buttons = [...box.querySelectorAll('button')];
+  return buttons.length > 0 && buttons.every((b) => {
+    const r = b.getBoundingClientRect();
+    return b.scrollWidth <= b.clientWidth + 1 && r.left >= edge.left - 0.5 && r.right <= edge.right + 0.5;
+  });
+}, width);
 const rowHas = (q, text) => q.waitForFunction((text) => document.querySelector('#settings-box .rv-settings-row')?.textContent.includes(text), text, { timeout: 5000 }).then(() => true, () => false);
 
 { // Rescan must leave a vault that still needs permission alone
@@ -191,6 +208,7 @@ const rowHas = (q, text) => q.waitForFunction((text) => document.querySelector('
   await q.waitForTimeout(800);
   const t = await row(q);
   ok('rescan leaves a vault that needs permission alone', t.includes('Needs permission again') && t.includes('Reconnect') && (await q.locator('.rv-toast').count()) === 0);
+  ok('Reconnect and Remove fit a narrow settings column', (await fits(q, 225)) && (await fits(q, 150)));
   await q.context().close();
 }
 { // a scan that fails says so instead of staying on "Indexing"
@@ -203,6 +221,7 @@ const rowHas = (q, text) => q.waitForFunction((text) => document.querySelector('
   await q.waitForTimeout(600);
   await press(q, 'Rescan');
   ok('a failed scan shows as "Couldn\'t read", not "Indexing"', await rowHas(q, "Couldn't read"));
+  ok('buttons fit a narrow settings column beside a long status', (await fits(q, 225)) && (await fits(q, 150)));
   ok('a failed scan clears the page section', await q.waitForFunction(() => !document.querySelector('.rv-panel')?.textContent.trim(), null, { timeout: 3000 }).then(() => true, () => false));
   // the folder comes back: Rescan recovers without a reload
   await q.evaluate(async () => {
