@@ -178,23 +178,33 @@ const mountSettings = (q) => q.evaluate(() => {
 });
 const press = (q, label) => q.evaluate((label) => [...document.querySelectorAll('#settings-box button')].find((b) => b.textContent === label).click(), label);
 const row = (q) => q.locator('#settings-box .rv-settings-row').textContent();
-// Roam gives a setting's control a narrow column (about 225 px in a 1024 px window). Every button must stay
-// inside it and keep its whole label. The stub gives buttons Blueprint's small minimum width.
-const fits = (q, width) => q.evaluate((width) => {
-  if (!document.querySelector('#bp-stub')) {
-    const s = document.createElement('style'); s.id = 'bp-stub';
-    s.textContent = '.bp3-button{display:inline-flex;align-items:center;min-width:24px;min-height:24px;padding:0 7px;font:14px sans-serif;border:0}';
-    document.head.append(s);
-  }
+// Roam lays a setting out as a row: name and description on the left, the control on the right. Both
+// columns shrink in proportion to their natural widths, so in a 1024 px window the control gets about
+// 225 px of a 670 px row, and in a 640 px window under 100 px of a 285 px row. Every button must stay
+// inside the control column and keep its whole label. The stub gives buttons Blueprint's small sizes.
+const fits = (q, rowWidth) => q.evaluate((rowWidth) => {
   const box = document.querySelector('#settings-box');
-  box.style.width = `${width}px`;
-  const edge = box.getBoundingClientRect();
+  if (!document.querySelector('#roam-row')) {
+    const s = document.createElement('style');
+    s.textContent = '.bp3-button{display:inline-flex;align-items:center;text-align:left;min-width:24px;min-height:24px;padding:0 7px;font:14px sans-serif;border:0}';
+    document.head.append(s);
+    const row = document.createElement('div'); row.id = 'roam-row'; row.style.cssText = 'display:flex;gap:27px;font:14px sans-serif';
+    const left = document.createElement('div'); left.style.cssText = 'flex:0 1 575px;min-width:0';
+    const right = document.createElement('div'); right.style.cssText = 'flex:0 1 auto;min-width:0';
+    row.append(left, right); document.body.append(row); right.append(box);
+  }
+  document.querySelector('#roam-row').style.width = `${rowWidth}px`;
+  const edge = box.parentElement.getBoundingClientRect();
   const buttons = [...box.querySelectorAll('button')];
-  return buttons.length > 0 && buttons.every((b) => {
+  const inside = buttons.length > 0 && buttons.every((b) => {
     const r = b.getBoundingClientRect();
     return b.scrollWidth <= b.clientWidth + 1 && r.left >= edge.left - 0.5 && r.right <= edge.right + 0.5;
   });
-}, width);
+  // is the first row's button group beside the vault name (not below it)?
+  const name = box.querySelector('.rv-settings-name').getBoundingClientRect();
+  const group = box.querySelector('.rv-settings-btns').getBoundingClientRect();
+  return { inside, beside: group.left >= name.right - 0.5 && group.top < name.bottom, column: Math.round(edge.width) };
+}, rowWidth);
 const rowHas = (q, text) => q.waitForFunction((text) => document.querySelector('#settings-box .rv-settings-row')?.textContent.includes(text), text, { timeout: 5000 }).then(() => true, () => false);
 
 { // Rescan must leave a vault that still needs permission alone
@@ -208,7 +218,7 @@ const rowHas = (q, text) => q.waitForFunction((text) => document.querySelector('
   await q.waitForTimeout(800);
   const t = await row(q);
   ok('rescan leaves a vault that needs permission alone', t.includes('Needs permission again') && t.includes('Reconnect') && (await q.locator('.rv-toast').count()) === 0);
-  ok('Reconnect and Remove fit a narrow settings column', (await fits(q, 225)) && (await fits(q, 150)));
+  ok('Reconnect and Remove stay inside the settings column', (await fits(q, 670)).inside && (await fits(q, 450)).inside && (await fits(q, 285)).inside);
   await q.context().close();
 }
 { // a scan that fails says so instead of staying on "Indexing"
@@ -217,11 +227,15 @@ const rowHas = (q, text) => q.waitForFunction((text) => document.querySelector('
   await mountSettings(q);
   await press(q, 'Add vault folder');
   await rowHas(q, '1 note');
+  const wide = await fits(q, 670), mid = await fits(q, 450), narrow = await fits(q, 285);
+  if (process.env.RV_DEBUG) console.log('control column widths', wide.column, mid.column, narrow.column);
+  ok('in a 1024 px window Remove sits beside the vault name, inside the column', wide.inside && wide.beside);
+  ok('buttons stay inside the settings column in narrow windows', mid.inside && narrow.inside);
   await q.evaluate(async () => (await navigator.storage.getDirectory()).removeEntry('My Vault', { recursive: true }));
   await q.waitForTimeout(600);
   await press(q, 'Rescan');
   ok('a failed scan shows as "Couldn\'t read", not "Indexing"', await rowHas(q, "Couldn't read"));
-  ok('buttons fit a narrow settings column beside a long status', (await fits(q, 225)) && (await fits(q, 150)));
+  ok('buttons stay inside the settings column beside a long status', (await fits(q, 670)).inside && (await fits(q, 450)).inside && (await fits(q, 285)).inside);
   ok('a failed scan clears the page section', await q.waitForFunction(() => !document.querySelector('.rv-panel')?.textContent.trim(), null, { timeout: 3000 }).then(() => true, () => false));
   // the folder comes back: Rescan recovers without a reload
   await q.evaluate(async () => {

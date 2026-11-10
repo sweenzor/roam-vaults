@@ -58,12 +58,12 @@ const STYLES = `
 .rv-viewer-body h2{font-size:20px}.rv-viewer-body h3{font-size:17px}.rv-viewer-body h4,.rv-viewer-body h5,.rv-viewer-body h6{font-size:15px}
 .rv-preview h2,.rv-preview h3,.rv-preview h4{margin:8px 0 4px;font-weight:600}
 .bp3-dark .rv-viewer-body.rv-preview{color:inherit}
-.rv-settings{display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%}
+.rv-settings{display:flex;flex-direction:column;gap:10px;width:280px;max-width:100%;min-width:0}
 .rv-settings-list{display:flex;flex-direction:column;gap:6px}
 .rv-settings-actions,.rv-settings-btns{display:flex;flex-wrap:wrap;gap:4px 8px}
 .rv-settings-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
-.rv-settings-name{flex:1 1 120px;min-width:0;font-weight:500;overflow-wrap:anywhere}
-.rv-settings .bp3-button{flex:none;white-space:nowrap}
+.rv-settings-name{flex:1 1 100px;min-width:0;font-weight:500;overflow-wrap:anywhere}
+.rv-settings .bp3-button{flex:0 1 auto;white-space:normal;text-align:left}
 .rv-settings-status{font-weight:400;font-size:12px;color:#8a9ba8}
 .bp3-dark .rv-sec-head strong{color:#5c7080}
 `;
