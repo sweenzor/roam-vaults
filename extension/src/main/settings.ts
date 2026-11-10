@@ -29,8 +29,10 @@ export function renderSettings(el: HTMLElement, m: SettingsModel) {
       vs.length
         ? h('div', { class: 'rv-settings-list' }, ...vs.map((v) => h('div', { class: 'rv-settings-row' },
             h('div', { class: 'rv-settings-name' }, v.name, h('div', { class: 'rv-settings-status' }, v.status)),
-            v.needsPermission ? btn('Reconnect', v.reconnect, 'bp3-intent-primary') : null,
-            btn('Remove', v.remove, 'bp3-minimal'))))
+            // one group, so in a narrow column the buttons move below the name together
+            h('div', { class: 'rv-settings-btns' },
+              v.needsPermission ? btn('Reconnect', v.reconnect, 'bp3-intent-primary') : null,
+              btn('Remove', v.remove, 'bp3-minimal')))))
         : null,
       h('div', { class: 'rv-settings-actions' }, btn('Add vault folder', m.add, 'bp3-intent-primary'),
         vs.length ? btn('Rescan', m.rescan, 'bp3-minimal') : null)));
