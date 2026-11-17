@@ -18,7 +18,7 @@ const MD = /\.md$/i;
 export const NONE: never[] = Object.freeze([]) as never[];
 export const nfcLower = (s: string) => s.normalize('NFC').toLowerCase();
 const dirOf = (p: string) => { const i = p.lastIndexOf('/'); return i < 0 ? '' : p.slice(0, i); };
-const baseOf = (p: string) => { const i = p.lastIndexOf('/'); return i < 0 ? p : p.slice(i + 1); };
+export const baseOf = (p: string) => { const i = p.lastIndexOf('/'); return i < 0 ? p : p.slice(i + 1); };
 
 /** Key for a link target: "Folder/Note.md" -> "folder/note"; "img.PNG" -> "img.png". */
 export function linkKey(target: string): string {
@@ -71,7 +71,7 @@ export class VaultIndex {
   preferNearby = false;
 
   // ---------- file registry ----------
-  private register(path: string): string {
+  protected register(path: string): string {
     path = path.normalize('NFC');
     const nameKey = baseOf(fileKeyPath(path));
     this.files.set(path, nameKey);
@@ -79,7 +79,7 @@ export class VaultIndex {
     if (arr) arr.push(path); else this.byName.set(nameKey, [path]);
     return nameKey;
   }
-  private unregister(path: string): string | undefined {
+  protected unregister(path: string): string | undefined {
     const nameKey = this.files.get(path);
     if (nameKey === undefined) return;
     this.files.delete(path);
@@ -101,8 +101,8 @@ export class VaultIndex {
     }
     const key = linkKey(t);
     const nameKey = baseOf(key);
-    let cands = this.byName.get(nameKey);
-    if (!cands || !cands.length) return [];
+    let cands: readonly string[] = this.pathsNamed(nameKey);
+    if (!cands.length) return [];
     if (key.includes('/')) {
       const exact = cands.filter((p) => fileKeyPath(p) === key);
       if (exact.length) return exact;
@@ -134,7 +134,7 @@ export class VaultIndex {
 
   /** Normalized link text of a target written in the note at src (lowercase, NFC, no leading
    *  '/', no .md): what an unresolved link is looked up by. Its file-name part is the name key. */
-  private keyOf(target: string, src: string): string {
+  protected keyOf(target: string, src: string): string {
     return linkKey(target.startsWith('./') || target.startsWith('../') ? (joinRel(dirOf(src), target) ?? target) : target);
   }
 
@@ -142,21 +142,18 @@ export class VaultIndex {
   backlinks(paths: Iterable<string>): LinkHit[] {
     const want = new Set(paths);
     const names = new Set<string>();
-    for (const p of want) { const k = this.files.get(p); if (k !== undefined) names.add(k); }
+    for (const p of want) { const k = this.nameOf(p); if (k !== undefined) names.add(k); }
     const out: LinkHit[] = [];
     // The same target written in the same folder resolves the same way.
     const memo = new Map<string, string | null>();
     for (const name of names) {
-      const at = this.linkers.get(name) ?? NONE;
-      for (let j = 0; j < at.length; j += 2) {
-        const n = at[j] as Note, i = at[j + 1] as number;
-        const target = n.links[i] as string, where = n.links[i + 1] as number;
-        const mk = `${dirOf(n.path)}\n${target}`;
+      this.eachLinker(name, (src, target, where) => {
+        const mk = `${dirOf(src)}\n${target}`;
         let to = memo.get(mk);
-        if (to === undefined) memo.set(mk, to = this.candidates(target, n.path)[0] ?? null);
-        if (to === null || to === n.path || !want.has(to)) continue;
-        out.push({ src: n.path, line: where >> 1, embed: (where & 1) === 1, resolved: to });
-      }
+        if (to === undefined) memo.set(mk, to = this.candidates(target, src)[0] ?? null);
+        if (to === null || to === src || !want.has(to)) return;
+        out.push({ src, line: where >> 1, embed: (where & 1) === 1, resolved: to });
+      });
     }
     return out;
   }
@@ -164,20 +161,17 @@ export class VaultIndex {
   /** Links written as this text (a linkKey) that resolve to no file. */
   unresolved(key: string): LinkHit[] {
     const out: LinkHit[] = [];
-    const at = this.linkers.get(baseOf(key)) ?? NONE;
-    for (let j = 0; j < at.length; j += 2) {
-      const n = at[j] as Note, i = at[j + 1] as number;
-      const target = n.links[i] as string, where = n.links[i + 1] as number;
-      if (this.keyOf(target, n.path) !== key || this.candidates(target, n.path).length) continue;
-      out.push({ src: n.path, line: where >> 1, embed: (where & 1) === 1, resolved: null });
-    }
+    this.eachLinker(baseOf(key), (src, target, where) => {
+      if (this.keyOf(target, src) !== key || this.candidates(target, src).length) return;
+      out.push({ src, line: where >> 1, embed: (where & 1) === 1, resolved: null });
+    });
     return out;
   }
 
   /** What each link in a note resolves to, in the order they are written. */
   outgoing(path: string): (string | null)[] {
     const out: (string | null)[] = [];
-    const l = this.notes.get(path)?.links ?? NONE;
+    const l = this.note(path)?.links ?? NONE;
     for (let i = 0; i < l.length; i += 2) out.push(this.candidates(l[i] as string, path)[0] ?? null);
     return out;
   }
@@ -209,6 +203,61 @@ export class VaultIndex {
     for (const k of aliasKeys(note)) pull(this.aliasIdx, k, path);
     for (const k of noteTagKeys(note)) pull(this.tagIdx, k, path);
   }
+
+  // ---------- lookups ----------
+  // Everything the resolver and the matcher ask of the index goes through these, so another store
+  // (src/sql/sql-index.ts keeps the same index in SQLite) can answer them instead of the maps above.
+  hasFile(path: string): boolean { return this.files.has(path); }
+  /** A file's name key (lowercase file name; notes without ".md"). */
+  nameOf(path: string): string | undefined { return this.files.get(path); }
+  /** Every file with this name key. */
+  pathsNamed(nameKey: string): readonly string[] { return this.byName.get(nameKey) ?? NONE; }
+  /** Every link whose target's file-name part is this name key, resolved or not. */
+  eachLinker(name: string, fn: (src: string, target: string, where: number) => void) {
+    const at = this.linkers.get(name) ?? NONE;
+    for (let j = 0; j < at.length; j += 2) {
+      const n = at[j] as Note, i = at[j + 1] as number;
+      fn(n.path, n.links[i] as string, n.links[i + 1] as number);
+    }
+  }
+  aliasPaths(key: string): readonly string[] { return this.aliasIdx.get(key) ?? NONE; }
+  tagPaths(key: string): readonly string[] { return this.tagIdx.get(key) ?? NONE; }
+  note(path: string): Note | undefined { return this.notes.get(path); }
+  /** A note's file size and time when it was read, if it is in the index. */
+  stampOf(path: string): { size: number; mtime: number } | undefined { return this.notes.get(path); }
+  noteCount(): number { return this.notes.size; }
+  /** Every path in the vault, notes and attachments. */
+  filePaths(): string[] { return [...this.files.keys()]; }
+  notePaths(): Iterable<string> { return this.notes.keys(); }
+  /** The notes inside a folder, at any depth. */
+  notesIn(folder: string): Note[] {
+    const out: Note[] = [];
+    for (const [p, n] of this.notes) if (p.startsWith(folder + '/')) out.push(n);
+    return out;
+  }
+  /** Lookup keys the matcher adds per note (daily-note dates, for one), path by key. */
+  private extra = new Map<string, string[]>();
+  addKey(key: string, path: string) { push(this.extra, key, path); }
+  removeKey(key: string, path: string) { pull(this.extra, key, path); }
+  keyPaths(key: string): readonly string[] { return this.extra.get(key) ?? NONE; }
+  /** Are the matcher's keys made with these settings already there? Maps start empty: never. */
+  keysMadeWith(_settings: string): boolean { return false; }
+  /** Add or update several notes. */
+  upsertNotes(notes: Note[]) { for (const n of notes) this.upsertNote(n); }
+  /** Every note's file size and time, by path. */
+  stamps(): Map<string, { size: number; mtime: number }> { return new Map(this.notes); }
+  /** Move a note to a path that has no file, keeping what is known of it. False if there was none. */
+  moveNote(from: string, to: string): boolean {
+    const n = this.note(from);
+    if (!n || this.hasFile(to)) return false;
+    this.removeFile(from);
+    this.upsertNote({ ...n, path: to });
+    return true;
+  }
+  /** Is the index kept in place across scans (a database) instead of built anew each time? */
+  readonly inPlace: boolean = false;
+  /** Writes are complete for now (a store that batches them commits). */
+  flush() {}
 
   // ---------- public API ----------
   build(notes: Note[], attachments: string[]) {
@@ -259,11 +308,11 @@ export function tagKeys(tag: string): string[] {
 }
 
 /** The keys a note is listed under, each once (so it is added and removed exactly once). */
-function aliasKeys(note: Note): string[] {
+export function aliasKeys(note: Note): string[] {
   if (!note.aliases.length) return NONE;
   return [...new Set(note.aliases.map(nfcLower))];
 }
-function noteTagKeys(note: Note): string[] {
+export function noteTagKeys(note: Note): string[] {
   if (!note.tags.length) return NONE;
   const out = new Set<string>();
   for (const t of note.tags) for (const k of tagKeys(t)) out.add(k);

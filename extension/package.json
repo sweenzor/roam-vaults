@@ -16,6 +16,7 @@
     "typescript": "5.6.3"
   },
   "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
     "ignore": "7.0.14"
   }
 }

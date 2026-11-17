@@ -180,14 +180,23 @@ const cacheKeys = () => p.evaluate(() => new Promise((res, rej) => {
   };
 }));
 await p.waitForTimeout(2500); // let the worker's debounced cache save land
+// Each vault's index is a SQLite database in the private file system, which is also its cache:
+// the IndexedDB cache is emptied once the database is open.
+const databases = () => p.evaluate(async () => {
+  const out = [];
+  try { for await (const [name, h] of (await (await navigator.storage.getDirectory()).getDirectoryHandle('.roam-vaults')).entries()) if (h.kind === 'directory') out.push(name); }
+  catch { /* none */ }
+  return out;
+});
 const cached = await cacheKeys();
-ok('each note is cached under its vault and path', cached.keys.includes('Work Notes | Alpha budget.md') && cached.keys.includes('My Vault | Projects/Project Alpha.md') && cached.keys.includes('My Vault | Fresh idea.md') && cached.keys.includes('My Vault | R\u00e9sum\u00e9s/2026/Q4/Caf\u00e9 plan.md') && cached.keys.length === 6);
+ok('each vault has its own SQLite database', (await databases()).length === 2);
+ok('the IndexedDB cache is left empty', cached.keys.length === 0);
 ok('the single-record cache of 0.1.0 is gone', cached.stores.join() === 'notes');
 ok('settings list shows both vaults', (await p.locator('#settings-box .rv-settings-row').count()) === 2);
 if (process.argv[2]) await p.locator('#settings-box').screenshot({ path: process.argv[2].replace(/\.png$/, '-settings.png') });
 await p.locator('#settings-box .rv-settings-row', { hasText: 'Work Notes' }).locator('button', { hasText: 'Remove' }).click();
 
-ok('remove deletes only that vault\'s cache', await p.waitForFunction(() => true).then(async () => { await p.waitForTimeout(300); const { keys } = await cacheKeys(); return !keys.some((k) => k.startsWith('Work Notes | ')) && keys.filter((k) => k.startsWith('My Vault | ')).length === 5; }));
+ok('remove deletes only that vault\'s database', await p.waitForFunction(() => true).then(async () => { await p.waitForTimeout(500); return (await databases()).length === 1; }));
 ok('settings list updates after remove', await p.waitForFunction(() => document.querySelectorAll('#settings-box .rv-settings-row').length === 1, null, { timeout: 3000 }).then(() => true, () => false));
 ok('remove drops only that vault', await p.waitForFunction(() => { const t = document.querySelector('.rv-panel').textContent; return !t.includes('Alpha budget') && t.includes('5 External Vault References') && !t.includes('My Vault/'); }, null, { timeout: 3000 }).then(() => true, () => false));
 

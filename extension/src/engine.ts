@@ -48,6 +48,8 @@ const MAX_BACKLINK_NOTES = 200;
 /** Note text kept for the lines shown under a page, in characters (a megabyte or two). */
 const MAX_TEXT_CHARS = 1_000_000;
 const READS_AT_ONCE = 16;
+/** Notes written to an index kept in place per call, during a scan. */
+const BATCH = 200;
 
 export class VaultEngine {
   idx = new VaultIndex();
@@ -59,13 +61,19 @@ export class VaultEngine {
 
   private fs: VaultFS;
   private dailyFormats: string[];
-  constructor(fs: VaultFS, dailyFormats: string[] = ['YYYY-MM-DD']) { this.fs = fs; this.dailyFormats = dailyFormats; }
+  /** An index kept in place across scans (a database), or none: each scan builds a new one in memory. */
+  private store: VaultIndex | null;
+  constructor(fs: VaultFS, dailyFormats: string[] = ['YYYY-MM-DD'], store: VaultIndex | null = null) {
+    this.fs = fs; this.dailyFormats = dailyFormats; this.store = store;
+    if (store) { this.idx = store; store.preferNearby = true; }
+  }
 
   /** The parsed notes, for the next scan to start from. */
   get cache(): Cache { return this.idx.notes; }
 
   /** Full scan. Files whose size and mtime match the cache are not re-read. */
   async build(cache: Cache = new Map(), onProgress?: (done: number, total: number) => void, concurrency = 32): Promise<BuildStats> {
+    if (this.store) return this.buildInPlace(onProgress, concurrency);
     const t0 = Date.now();
     const all = await this.fs.list();
     const md = all.filter((f) => MD.test(f.path));
@@ -103,19 +111,73 @@ export class VaultEngine {
     return { notes: ok.length, files: all.length, reread, cached: ok.length - reread, errors, ms: Date.now() - t0 };
   }
 
+  /**
+   * Full scan into an index kept in place: the index is its own cache. Notes whose size and time
+   * match are not read; changed ones are written as they are read, and what is gone is removed at
+   * the end. Queries during the scan see a mix of old and new notes, each one whole.
+   */
+  private async buildInPlace(onProgress?: (done: number, total: number) => void, concurrency = 32): Promise<BuildStats> {
+    const t0 = Date.now();
+    const idx = this.store!;
+    // Before any note is written, so the matcher sees the ones added by this scan.
+    this.matcher ??= new RoamMatcher(idx, { dailyFormats: this.dailyFormats, sanitized: false });
+    const all = await this.fs.list();
+    const md = all.filter((f) => MD.test(f.path));
+    const errors: string[] = [];
+    let reread = 0, done = 0, i = 0, ok = 0;
+    let stamps: Map<string, { size: number; mtime: number }> | null = idx.stamps();
+    // Read notes are written in batches: a database call costs much more than a row.
+    let batch: Note[] = [];
+    const work = async () => {
+      while (i < md.length) {
+        const f = md[i++];
+        const c = stamps!.get(f.path);
+        if (c && c.size === f.size && c.mtime === f.mtime) ok++;
+        else {
+          try {
+            const text = await this.fs.readText(f.path); // before batch is read: it may be replaced meanwhile
+            batch.push(toNote(parseNote(f.path, text), f.size, f.mtime));
+            if (batch.length >= BATCH) { idx.upsertNotes(batch); batch = []; }
+            reread++; ok++;
+          } catch (e) { errors.push(`${f.path}: ${(e as Error).name}`); }
+        }
+        if (++done % 50 === 0) onProgress?.(done, md.length);
+      }
+    };
+    try {
+      await Promise.all(Array.from({ length: Math.min(concurrency, md.length || 1) }, work));
+      stamps = null;
+      idx.upsertNotes(batch); batch = [];
+      const seen = new Set<string>();
+      for (const f of all) {
+        seen.add(f.path);
+        if (!MD.test(f.path) && !idx.hasFile(f.path)) idx.addAttachment(f.path);
+      }
+      // A note that could not be read keeps what the index had for it, as a full scan in memory would not.
+      for (const p of idx.filePaths()) if (!seen.has(p)) idx.removeFile(p);
+    } finally { idx.flush(); }
+    this.texts.clear(); this.textChars = 0;
+    clearInterned();
+    onProgress?.(md.length, md.length);
+    return { notes: ok, files: all.length, reread, cached: ok - reread, errors, ms: Date.now() - t0 };
+  }
+
   /** Re-check specific paths after a watcher event. Returns true if anything changed. */
   async refresh(paths: string[]): Promise<boolean> {
+    try { return await this.refreshPaths(paths); } finally { this.idx.flush(); }
+  }
+  private async refreshPaths(paths: string[]): Promise<boolean> {
     let changed = false;
     for (const path of new Set(paths)) {
       this.forget(path);
       const meta = await this.fs.stat(path).catch(() => null);
-      const known = this.idx.files.has(path);
+      const known = this.idx.hasFile(path);
       if (!meta) {
         if (known) { this.idx.removeFile(path); if (MD.test(path)) this.unsaved.set(path, null); changed = true; }
         continue;
       }
       if (!MD.test(path)) { if (!known) { this.idx.addAttachment(path); changed = true; } continue; }
-      const c = this.idx.notes.get(path);
+      const c = this.idx.stampOf(path);
       if (c && c.size === meta.size && c.mtime === meta.mtime) continue;
       try {
         const note = toNote(parseNote(path, await this.fs.readText(path)), meta.size, meta.mtime);
@@ -135,6 +197,9 @@ export class VaultEngine {
    * new path instead of being read again. Returns true if anything changed.
    */
   async refreshFolders(folders: { path: string; from?: string }[], concurrency = 16): Promise<boolean> {
+    try { return await this.refreshFoldersNow(folders, concurrency); } finally { this.idx.flush(); }
+  }
+  private async refreshFoldersNow(folders: { path: string; from?: string }[], concurrency: number): Promise<boolean> {
     let changed = false;
     const walk = outermost(folders.map((f) => f.path));
     const clear = new Set<string>();
@@ -144,7 +209,7 @@ export class VaultEngine {
     for (const { path, from } of folders) {
       if (from === undefined || from === path) continue;
       clear.add(from);
-      for (const [p, n] of this.idx.notes) if (p.startsWith(from + '/')) reuse.set(path + p.slice(from.length), n);
+      for (const n of this.idx.notesIn(from)) reuse.set(path + n.path.slice(from.length), n);
     }
     const seen = new Map<string, FileMeta>();
     for (const dir of walk) {
@@ -154,11 +219,17 @@ export class VaultEngine {
         clear.add(dir);
       } catch (e) {
         if ((e as Error)?.name === 'NotFoundError') clear.add(dir);
-        else for (const p of this.idx.files.keys()) if (p.startsWith(dir + '/')) recheck.push(p);
+        else for (const p of this.idx.filePaths()) if (p.startsWith(dir + '/')) recheck.push(p);
       }
     }
+    // An index kept in place moves a note that is unchanged at its new path (keeping what it
+    // knows of the note's text), before what is gone is removed.
+    if (this.idx.inPlace) for (const [to, n] of reuse) {
+      const f = seen.get(to);
+      if (f && n.size === f.size && n.mtime === f.mtime && !this.idx.hasFile(to) && this.idx.moveNote(n.path, to)) changed = true;
+    }
     // What the index has in those folders and is no longer there.
-    for (const p of [...this.idx.files.keys()]) {
+    for (const p of this.idx.filePaths()) {
       if (seen.has(p) || !inFolder(p, clear)) continue;
       this.forget(p);
       this.idx.removeFile(p);
@@ -168,12 +239,14 @@ export class VaultEngine {
     const toRead: FileMeta[] = [];
     for (const f of seen.values()) {
       if (!MD.test(f.path)) {
-        if (!this.idx.files.has(f.path)) { this.idx.addAttachment(f.path); changed = true; }
+        if (!this.idx.hasFile(f.path)) { this.idx.addAttachment(f.path); changed = true; }
         continue;
       }
-      const c = this.idx.notes.get(f.path) ?? reuse.get(f.path);
+      const at = this.idx.stampOf(f.path);
+      if (at) { if (at.size !== f.size || at.mtime !== f.mtime) toRead.push(f); continue; }
+      // An index kept in place has moved what it could; the rest is read, for its text.
+      const c = this.idx.inPlace ? undefined : reuse.get(f.path);
       if (!c || c.size !== f.size || c.mtime !== f.mtime) { toRead.push(f); continue; }
-      if (c.path === f.path) continue;
       const note = { ...c, path: f.path };
       this.idx.upsertNote(note);
       this.unsaved.set(f.path, note);
@@ -193,7 +266,7 @@ export class VaultEngine {
       }
     };
     await Promise.all(Array.from({ length: Math.min(concurrency, toRead.length) }, work));
-    if (await this.refresh(recheck)) changed = true;
+    if (await this.refreshPaths(recheck)) changed = true;
     clearInterned();
     return changed;
   }

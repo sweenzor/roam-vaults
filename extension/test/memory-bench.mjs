@@ -292,6 +292,19 @@ const heads = {};
 for (const t of titles) heads[t] = await visit(p, t);
 console.log(`visited ${titles.length} pages, ${Object.values(heads).filter(Boolean).length} with references`);
 await settle(p, 'after visiting 40 pages');
+// Page lookup times, straight from the workers, where the build exports them.
+const timing = await p.evaluate(async (titles) => {
+  const ext = window.__ext, out = {};
+  const time = async (fn, n) => {
+    const xs = [];
+    for (let i = 0; i < n; i++) { const t0 = performance.now(); await fn(i); xs.push(performance.now() - t0); }
+    xs.sort((a, b) => a - b);
+    return { medianMs: +xs[xs.length >> 1].toFixed(1), p95Ms: +xs[Math.floor(xs.length * 0.95)].toFixed(1) };
+  };
+  if (ext.query) out.pageQuery = await time((i) => ext.query(titles[i % titles.length]), 80);
+  return out;
+}, titles);
+console.log(JSON.stringify(timing));
 
 for (let i = 0; i < 15; i++) { // each edit is followed by a cache write
   if (DISK) fs.writeFileSync(path.join(vaultDir, `Scratch ${i % 3}.md`), `edit ${i} links [[Alpha]], [[Budget]] and [[Live edit check]]\n`);
@@ -343,7 +356,14 @@ console.log(`rescan took ${await indexed(p)} ms`);
 await settle(p, 'after a rescan');
 await settle(p, 'end: idle', IDLE);
 const heap = await workerHeap(ctx, p);
-console.log(JSON.stringify({ workerHeapMB: mb(heap), cacheMB: mb((await p.evaluate(async () => (await navigator.storage.estimate()).usageDetails?.indexedDB ?? 0))) }));
+const stored = await p.evaluate(async () => {
+  // The origin private file system's files under .roam-vaults (the SQLite builds' databases).
+  let bytes = 0;
+  const walk = async (d) => { for await (const [, h] of d.entries()) bytes += h.kind === 'file' ? (await h.getFile()).size : 0, h.kind === 'directory' && await walk(h); };
+  try { await walk(await (await navigator.storage.getDirectory()).getDirectoryHandle('.roam-vaults')); } catch { /* none */ }
+  return { idb: (await navigator.storage.estimate()).usageDetails?.indexedDB ?? 0, opfs: bytes };
+});
+console.log(JSON.stringify({ workerHeapMB: mb(heap), cacheMB: mb(stored.idb), sqliteFilesMB: mb(stored.opfs) }));
 console.log(JSON.stringify({ heads }));
 clearInterval(watch);
 await ctx.close(); server.close();

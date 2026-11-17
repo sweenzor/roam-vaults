@@ -396,6 +396,13 @@ async function main() {
   fs.writeFileSync(path.join(small, 'Fresh CI note.md'), `Written while Roam was open, links [[${TEST_PAGE}]].\n`);
   const live = await waitFor('the new note to appear', async () => (await panelText()).includes('Fresh CI note'), 15000).then(() => true, () => false);
   check('A note added on disk shows up without a Rescan', live);
+  check('The vault index is stored in SQLite in the private file system', await evalIn(async () => {
+    try {
+      const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('.roam-vaults');
+      for await (const [, h] of d.entries()) if (h.kind === 'directory') return true;
+    } catch { /* none */ }
+    return false;
+  }));
 
   // large vault: memory
   await addVault(big);

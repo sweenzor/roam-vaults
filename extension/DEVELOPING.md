@@ -63,6 +63,25 @@ Roam Depot tab.
 
 The design and measurements are in [docs/FEASIBILITY.md](../docs/FEASIBILITY.md).
 
+## SQLite index (prototype)
+
+On this branch the worker keeps the index in SQLite instead of JavaScript maps. Full-text search over the
+notes was prototyped on top of it and taken out again (on the backlog); its code is in commit 1b8305b.
+
+- SQLite is the official WebAssembly build, `@sqlite.org/sqlite-wasm` (pinned). `build.mjs` gzips its `.wasm`
+  and inlines it in `extension.js` as base64 (Roam Depot allows no code from the network). The page compiles it
+  once (`compileSqlite` in `main/index.ts`) and hands the compiled module to each vault's worker in `open`.
+  If that fails, the worker uses the in-memory index as before.
+- Each vault has its own database in the origin private file system, in `.roam-vaults/<poolName(id)>`, through
+  the `opfs-sahpool` VFS (`sql/db.ts`). A pool can be open in one worker at a time: a second Roam window on the
+  same vault gets a database in memory instead. Removing a vault deletes its folder.
+- The tables are in `sql/schema.ts`: add a step at the end of `MIGRATIONS`. `SqlIndex` (`sql/sql-index.ts`)
+  overrides the lookups `VaultIndex` makes (`pathsNamed`, `eachLinker`, `aliasPaths`, ...), so link resolution
+  and its tie-break rules are the same code. `test/sql.test.ts` checks both indexes answer every query the same.
+- The database is the parse cache: each scan updates it in place (`VaultEngine.buildInPlace`), and the
+  IndexedDB cache is dropped. Writes are batched in a transaction that `flush()` commits. A scan that stops
+  part way leaves the notes it wrote, so the next one carries on from there.
+
 ## Real Roam run (GitHub Actions)
 
 `.github/workflows/real-roam.yml` runs `test/real-roam/run.mjs` on pull requests that touch `extension/`

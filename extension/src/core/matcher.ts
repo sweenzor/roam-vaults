@@ -36,21 +36,23 @@ export class RoamMatcher {
   idx: VaultIndex;
   opts: MatcherOptions;
   formats: DateFormat[];
-  sanitized = new Map<string, Set<string>>();
-  loose = new Map<string, Set<string>>();
-  daily = new Map<string, Set<string>>();          // iso -> paths
   nsSeps: string[];
+  private listener: (p: string, kind: string) => void;
 
   constructor(idx: VaultIndex, opts: MatcherOptions) {
     this.idx = idx; this.opts = opts;
     this.formats = opts.dailyFormats.map(compileFormat);
     this.nsSeps = opts.nsSeparators ?? ['-', '_', ' - ', '∕', '／', '.', ' '];
-    for (const p of idx.notes.keys()) this.addPath(p);
-    idx.listeners.push((p, kind) => {
+    // The keys live in the index, so a store kept across starts has them already.
+    const settings = JSON.stringify([opts.dailyFormats, opts.sanitized !== false, !!opts.loose]);
+    if (!idx.keysMadeWith(settings)) for (const p of [...idx.notePaths()]) this.addPath(p);
+    idx.listeners.push(this.listener = (p, kind) => {
       if (kind === 'add') this.addPath(p);
       else if (kind === 'remove') this.removePath(p);
     });
   }
+  /** Stop following the index (it outlives this matcher). */
+  detach() { const i = this.idx.listeners.indexOf(this.listener); if (i >= 0) this.idx.listeners.splice(i, 1); }
   private keysFor(path: string) {
     const kp = fileKeyPath(path);
     const base = kp.slice(kp.lastIndexOf('/') + 1);
@@ -61,15 +63,16 @@ export class RoamMatcher {
   private addPath(p: string) {
     if (!/\.md$/i.test(p)) return;
     const k = this.keysFor(p);
-    if (this.opts.sanitized !== false) add(this.sanitized, k.s, p);
-    if (this.opts.loose) add(this.loose, k.l, p);
-    for (const iso of k.isos) add(this.daily, iso, p);
+    if (this.opts.sanitized !== false) this.idx.addKey('s:' + k.s, p);
+    if (this.opts.loose) this.idx.addKey('l:' + k.l, p);
+    for (const iso of new Set(k.isos)) this.idx.addKey('d:' + iso, p);
   }
   private removePath(p: string) {
     if (!/\.md$/i.test(p)) return;
     const k = this.keysFor(p);
-    del(this.sanitized, k.s, p); del(this.loose, k.l, p);
-    for (const iso of k.isos) del(this.daily, iso, p);
+    if (this.opts.sanitized !== false) this.idx.removeKey('s:' + k.s, p);
+    if (this.opts.loose) this.idx.removeKey('l:' + k.l, p);
+    for (const iso of new Set(k.isos)) this.idx.removeKey('d:' + iso, p);
   }
 
   associations(title: string): Associations {
@@ -87,17 +90,17 @@ export class RoamMatcher {
       }
     }
     // (c) aliases
-    for (const p of idx.aliasIdx.get(nfcLower(t)) ?? []) put(p, 'alias');
+    for (const p of idx.aliasPaths(nfcLower(t))) put(p, 'alias');
     // (e) daily notes
     const iso = roamDailyToIso(t);
-    if (iso) for (const p of this.daily.get(iso) ?? []) put(p, 'daily');
+    if (iso) for (const p of idx.keyPaths('d:' + iso)) put(p, 'daily');
     // (f) namespace flattened into a single file name
     if (t.includes('/')) for (const sep of this.nsSeps) {
-      for (const p of idx.byName.get(nfcLower(t.split('/').join(sep))) ?? []) if (/\.md$/i.test(p)) put(p, 'ns-flat');
+      for (const p of idx.pathsNamed(nfcLower(t.split('/').join(sep)))) if (/\.md$/i.test(p)) put(p, 'ns-flat');
     }
     // sanitized (illegal chars) tier
-    for (const p of this.sanitized.get(sanitizedKey(t)) ?? []) put(p, 'sanitized');
-    if (this.opts.loose) for (const p of this.loose.get(looseKey(t)) ?? []) put(p, 'loose');
+    if (this.opts.sanitized !== false) for (const p of idx.keyPaths('s:' + sanitizedKey(t))) put(p, 'sanitized');
+    if (this.opts.loose) for (const p of idx.keyPaths('l:' + looseKey(t))) put(p, 'loose');
 
     // (d) notes that link to it: backlinks of every matched note + unresolved links by text
     const links: LinkMatch[] = [];
@@ -115,11 +118,9 @@ export class RoamMatcher {
     const tagged: { path: string; tag: string }[] = [];
     const tk = nfcLower(t);
     const tagVariants = t.includes(' ') ? [tk, tk.replace(/ /g, '-'), tk.replace(/ /g, '_')] : [tk];
-    for (const v of tagVariants) for (const p of idx.tagIdx.get(v) ?? []) tagged.push({ path: p, tag: v });
+    for (const v of tagVariants) for (const p of idx.tagPaths(v)) tagged.push({ path: p, tag: v });
 
     return { title, notes: [...notes].map(([path, how]) => ({ path, how })), links, tagged };
   }
 }
 
-function add<K, V>(m: Map<K, Set<V>>, k: K, v: V) { const s = m.get(k); if (s) s.add(v); else m.set(k, new Set([v])); }
-function del<K, V>(m: Map<K, Set<V>>, k: K, v: V) { const s = m.get(k); if (!s) return; s.delete(v); if (!s.size) m.delete(k); }
