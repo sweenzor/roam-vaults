@@ -4,6 +4,7 @@
 // again. Runs in the indexer worker.
 import { VaultIndex, NONE, baseOf, fileKeyPath, aliasKeys, noteTagKeys } from '../core/vault-index.ts';
 import type { Note } from '../core/types.ts';
+import { FuzzyTitles } from './fuzzy.ts';
 
 const ALIAS = 0, TAG = 1, MATCHER = 2;
 const WRITES_PER_COMMIT = 20000;
@@ -15,7 +16,14 @@ export class SqlIndex extends VaultIndex {
   private inTx = false;
   private writes = 0;
 
-  constructor(db: any) { super(); this.db = db; }
+  private fuzzyTitles: FuzzyTitles;
+
+  constructor(db: any) { super(); this.db = db; this.fuzzyTitles = FuzzyTitles.attach(this); }
+
+  override fuzzy(title: string, limit: number) {
+    this.flush();
+    return this.fuzzyTitles.match(title, limit);
+  }
 
   // ---------- statements ----------
   private st(sql: string) {
@@ -57,6 +65,7 @@ export class SqlIndex extends VaultIndex {
   override flush() { if (this.inTx) { this.db.exec('COMMIT'); this.inTx = false; } }
   close() {
     this.flush();
+    this.fuzzyTitles.close();
     for (const s of this.stmts.values()) s.finalize();
     this.stmts.clear();
     this.db.close();

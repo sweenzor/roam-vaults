@@ -53,6 +53,15 @@ Roam Depot tab.
   their own; a moved folder's notes keep their parse under the new path. Only an `errored` record, or an
   `unknown` one without a path (events lost somewhere in the vault), walks the whole vault again.
 - Daily notes use the format in `.obsidian/daily-notes.json`, falling back to `YYYY-MM-DD`.
+- Similar names: a page that no note is lists notes whose name or alias is close to its title. The scoring,
+  its guards (every word must start with the same letter, keep its numbers, and so on) and the highlighted
+  letters (`diffMarks`) are in `src/core/fuzzy.ts`. The lookup runs on the vault's SQLite database
+  (`src/sql/fuzzy.ts`, see below): each name and alias is a row cut into trigrams by triggers, and a title's
+  rarer trigrams pull the 50 closest keys for `fuzzy.ts` to judge (2 to 5 ms a page at 20,000 notes, 5 MB of
+  database). When SQLite can't load, `src/core/fuzzy-index.ts` does the same in memory, with notes in buckets
+  by the first letters of their words. To measure quality, latency and size of both:
+  `npm pack wordlist-english && tar xzf wordlist-english-*.tgz` once, then
+  `WORDS=path/to/package node --expose-gc test/fuzzy-bench.mjs [notes]`.
 - The scan skips dot-folders, paths matched by the vault's `.gitignore` files (git's rules, through the
   `ignore` package, nearest file decides) and Obsidian's Excluded files (`userIgnoreFilters` in
   `.obsidian/app.json`: a plain entry is a path prefix, `/.../` a regular expression tested against file
@@ -75,7 +84,8 @@ notes was prototyped on top of it and taken out again (on the backlog); its code
 - Each vault has its own database in the origin private file system, in `.roam-vaults/<poolName(id)>`, through
   the `opfs-sahpool` VFS (`sql/db.ts`). A pool can be open in one worker at a time: a second Roam window on the
   same vault gets a database in memory instead. Removing a vault deletes its folder.
-- The tables are in `sql/schema.ts`: add a step at the end of `MIGRATIONS`. `SqlIndex` (`sql/sql-index.ts`)
+- The tables are in `sql/schema.ts`: add a step at the end of `MIGRATIONS`. Step 2 adds the similar-name
+  tables (`sql/fuzzy.ts`), kept in step with the notes through the index's file listener. `SqlIndex` (`sql/sql-index.ts`)
   overrides the lookups `VaultIndex` makes (`pathsNamed`, `eachLinker`, `aliasPaths`, ...), so link resolution
   and its tie-break rules are the same code. `test/sql.test.ts` checks both indexes answer every query the same.
 - The database is the parse cache: each scan updates it in place (`VaultEngine.buildInPlace`), and the

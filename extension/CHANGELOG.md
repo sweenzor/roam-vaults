@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.1.1 (unreleased)
+## 0.2.0 (unreleased)
+
+- Notes with a similar name. When no note is the page, External Vault References also lists notes whose
+  name or alias is close to the page title: a typo, two swapped letters, a plural, or the same words in
+  another order. They come last, faded, with the letters that differ highlighted in Roam's highlight
+  colour. Every word must start with the same letter and keep its numbers, and titles under five letters
+  get none, so `Q3 Plan` never matches `Q4 Plan` and `Might` never matches `Eight`.
+
+## 0.1.1 (2026-11-17)
 
 Uses much less memory, most of all with large vaults.
 

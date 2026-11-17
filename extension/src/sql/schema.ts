@@ -4,6 +4,8 @@
 // The database is a cache of what the vault's files say, so a step may also drop everything and
 // let the next scan read the vault again.
 
+import { fuzzyMigration } from './fuzzy.ts';
+
 type Db = { exec(sql: string): unknown };
 
 export const MIGRATIONS: ((db: Db) => void)[] = [
@@ -29,6 +31,11 @@ export const MIGRATIONS: ((db: Db) => void)[] = [
       PRIMARY KEY(kind, key, note)) WITHOUT ROWID;
     CREATE INDEX note_keys_note ON note_keys(note);
   `),
+  // Similar names (src/sql/fuzzy.ts). Notes already in the database have no rows there: start over.
+  (db) => {
+    fuzzyMigration(db);
+    db.exec('DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;');
+  },
 ];
 
 export function migrate(db: Db & { selectValue(sql: string): unknown }) {

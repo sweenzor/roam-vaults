@@ -37,7 +37,7 @@ those as well as `[[wikilinks]]`.
 
 One section covers every vault you add, and its count is the total across vaults. Notes are titled by
 their path in the vault, such as `Projects/Kernel meeting protocol`. With more than one vault, the vault
-name comes first in grey, such as `work-vault/Projects/Kernel meeting protocol`. The section lists three
+name comes first in grey, such as `work-vault/Projects/Kernel meeting protocol`. The section lists four
 kinds of notes, in this order:
 
 - **The note that is this page**, listed first and folded. A note matches when it has the same name (in any
@@ -48,6 +48,11 @@ kinds of notes, in this order:
   when no such note exists. Links in frontmatter count too. Each linking line is shown like a Roam block.
 - **Notes tagged here.** These are notes tagged `#this-page`, shown with the tag. A Roam namespace `a/b`
   matches the nested tag `#a/b`.
+- **Notes with a similar name**, only when no note is this page. These are notes whose name or alias is
+  close to the page title: a typo or two swapped letters (`Recieve Window` for **Receive Window**), a plural,
+  or the same words in another order (`Ridley Scott` for **Scott, Ridley**). They come last, faded and
+  folded, with the letters that differ highlighted. Every word must start with the same letter and keep its
+  numbers, so `Q3 Plan` never matches `Q4 Plan`, and titles under five letters don't get them.
 
 ![The matching note, work-vault/Planning, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/84a778cb7e5a0007230ee99702fdffbc369a6c95/docs/images/unfolded-note.png)
 
@@ -184,7 +189,6 @@ snapshot for a vault you wouldn't want shared that way.
 
 ## Limits in this version
 
-- Matching uses the exact rules above. Fuzzy or "similar title" matches aren't shown yet.
 - Notes are shown as read-only previews. Edit them in Obsidian or your usual editor.
 - Only `.md` files are read. Canvas files, PDFs and attachments are skipped.
 - Files and folders your vault's `.gitignore` files ignore, or that Obsidian's **Excluded files** setting

@@ -4,6 +4,8 @@
 import { parseNote, clearInterned } from './core/parser.ts';
 import { VaultIndex, toNote } from './core/vault-index.ts';
 import { RoamMatcher, type NoteHow } from './core/matcher.ts';
+import { FuzzyIndex, NAME } from './core/fuzzy-index.ts';
+import { diffMarks } from './core/fuzzy.ts';
 import type { Note } from './core/types.ts';
 
 export interface FileMeta { path: string; size: number; mtime: number }
@@ -28,6 +30,15 @@ export interface PageResult {
   counterparts: Counterpart[];
   backlinks: Backlink[];
   tagged: Tagged[];
+  /** Notes whose name or alias is close to the title (typos, word order), when no note is this
+   *  page. Shown last, set apart from the rest. */
+  fuzzy: FuzzyNote[];
+}
+export interface FuzzyNote {
+  path: string; title: string; score: number; sim: number;
+  /** Where the note's name differs from the page title: [start, end) in `title`, flat pairs.
+   *  Empty when the match was an alias. */
+  marks: number[];
 }
 export interface BuildStats { notes: number; files: number; reread: number; cached: number; errors: string[]; ms: number }
 
@@ -45,6 +56,8 @@ const MD = /\.md$/i;
 export const noteTitle = (path: string) => path.slice(path.lastIndexOf('/') + 1).replace(MD, '');
 const MAX_LINE = 240;
 const MAX_BACKLINK_NOTES = 200;
+/** Close-named notes shown under a page with no matching note. */
+const MAX_FUZZY = 5;
 /** Note text kept for the lines shown under a page, in characters (a megabyte or two). */
 const MAX_TEXT_CHARS = 1_000_000;
 const READS_AT_ONCE = 16;
@@ -54,6 +67,7 @@ const BATCH = 200;
 export class VaultEngine {
   idx = new VaultIndex();
   matcher!: RoamMatcher;
+  fuzzyIdx: FuzzyIndex | undefined;
   /** Notes that changed and paths that went away (null) since the cache was last written. */
   unsaved = new Map<string, Note | null>();
   private texts = new Map<string, string>(); // recently read note texts, oldest first, for snippets
@@ -103,6 +117,7 @@ export class VaultEngine {
     this.idx.build(ok, other);
     // Only the strong matches are shown, so the weaker lookup tables are not built.
     this.matcher = new RoamMatcher(this.idx, { dailyFormats: this.dailyFormats, sanitized: false });
+    this.fuzzyIdx = undefined; // made on first use, for this index (a database has its own)
     for (const path of cache.keys()) if (!this.idx.notes.has(path)) unsaved.set(path, null);
     this.unsaved = unsaved;
     this.texts.clear(); this.textChars = 0;
@@ -302,7 +317,18 @@ export class VaultEngine {
     const tagged: Tagged[] = [];
     for (const t of a.tagged) if (!seenTag.has(t.path)) { seenTag.add(t.path); tagged.push({ path: t.path, title: noteTitle(t.path), tag: t.tag }); }
     tagged.sort((x, y) => x.title.localeCompare(y.title) || (x.path < y.path ? -1 : x.path > y.path ? 1 : 0));
-    return { title, counterparts, backlinks, tagged };
+    // Close names only for a page no note is: next to an exact match they would mostly be noise.
+    const shown = new Set([...strong, ...srcs, ...tagged.map((t) => t.path)]);
+    const fuzzy = counterparts.length ? [] : this.fuzzy(title, MAX_FUZZY).filter((f) => !shown.has(f.path));
+    return { title, counterparts, backlinks, tagged, fuzzy };
+  }
+
+  /** Notes whose name or alias is close to a page title, best first. */
+  fuzzy(title: string, limit = 10): FuzzyNote[] {
+    return (this.idx.fuzzy(title, limit) ?? (this.fuzzyIdx ??= new FuzzyIndex(this.idx)).match(title, limit)).map((h) => {
+      const name = noteTitle(h.path);
+      return { path: h.path, title: name, score: h.score, sim: h.sim, marks: h.kind === NAME ? diffMarks(name, title).flat() : [] };
+    });
   }
 
   async read(path: string): Promise<string> { return this.fs.readText(path); }

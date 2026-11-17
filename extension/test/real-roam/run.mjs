@@ -34,6 +34,8 @@ const DIST = path.resolve(process.env.DIST || path.join(import.meta.dirname, '..
 const OUT = path.resolve(process.env.OUT || 'real-roam-out');
 const NOTES = +(process.env.NOTES || 20000);
 const TEST_PAGE = 'Vaults CI test';
+// A page no note is, with a note whose name has two letters swapped: a similar-name (fuzzy) match.
+const FUZZY_PAGE = 'Vaults CI fuzzy check', FUZZY_NOTE = 'Vaults CI fuzzy chekc';
 const SMALL = 'CI Vault', BIG = 'Big Vault';
 // MB the extension adds over Roam without it. PR #16 measured 193 / 89 / 168 / 235 / 383 at 20,000
 // notes on Roam 0.0.42 (Linux); 0.1.0 measured 466 / 325 / 827 / 1,389 / 2,698.
@@ -208,15 +210,15 @@ async function dismissDialogs() {
     await page.keyboard.press('Escape'); await sleep(500);
   }
 }
-async function openTestPage() {
+async function openTestPage(title = TEST_PAGE) {
   await dismissDialogs();
   await evalIn(async (title) => {
     const api = window.roamAlphaAPI;
     const exists = api.data.q('[:find ?u . :in $ ?t :where [?p :node/title ?t] [?p :block/uid ?u]]', title);
     if (!exists) await api.data.page.create({ page: { title } });
     await api.ui.mainWindow.openPage({ page: { title } });
-  }, TEST_PAGE);
-  await waitFor('the test page', () => evalIn((t) => document.querySelector('.roam-article .rm-title-display')?.textContent.trim() === t, TEST_PAGE), 20000);
+  }, title);
+  await waitFor('the test page', () => evalIn((t) => document.querySelector('.roam-article .rm-title-display')?.textContent.trim() === t, title), 20000);
 }
 
 // ---------- Settings dialog ----------
@@ -352,6 +354,7 @@ async function main() {
     [`${TEST_PAGE}.md`]: `# ${TEST_PAGE}\nThe note for this page. See [[CI linked note]].\n`,
     'Notes/CI linked note.md': `Mentions [[${TEST_PAGE}]] in a backlink line.\n`,
     'Daily/2026-01-02.md': `- met about [[${TEST_PAGE}|the CI page]]\n`,
+    [`Notes/${FUZZY_NOTE}.md`]: 'A note whose name has a typo.\n',
     '.obsidian/app.json': '{}',
   };
   for (const [rel, text] of Object.entries(smallFiles)) { fs.mkdirSync(path.dirname(path.join(small, rel)), { recursive: true }); fs.writeFileSync(path.join(small, rel), text); }
@@ -376,9 +379,9 @@ async function main() {
 
   // small vault: function
   await addVault(small);
-  await waitFor(`${SMALL} to finish scanning`, async () => /^3 notes$/.test(await statusOf(SMALL)), 30000)
+  await waitFor(`${SMALL} to finish scanning`, async () => /^4 notes$/.test(await statusOf(SMALL)), 30000)
     .catch(async (e) => { check('Small vault scans', false, await statusOf(SMALL)); throw e; });
-  check('Vault list shows the new vault and its note count', true, '3 notes');
+  check('Vault list shows the new vault and its note count', true, '4 notes');
   await shot('settings-one-vault');
   await openTestPage();
   const t1 = await waitFor('External Vault References on the page', async () => { const t = await panelText(); return t.includes('External Vault References') && t; }, 15000).catch(() => '');
@@ -393,6 +396,16 @@ async function main() {
   const unfolded = await waitFor('the counterpart note to unfold', () => evalIn(() => document.querySelector('.roam-article .rv-preview')?.innerText.includes('The note for this page')), 5000).catch(() => false);
   check('Unfolding a note shows it inline', unfolded);
   await shot('page-external-vault-references');
+  // similar names: only on a page no note is, faded, the swapped letters highlighted
+  await openTestPage(FUZZY_PAGE);
+  const fz = await waitFor('a similar-name match', () => evalIn(() => {
+    const row = document.querySelector('.roam-article .rv-panel .rv-fuzzy');
+    return row && { title: row.querySelector('.rv-note')?.textContent.trim(), marked: [...row.querySelectorAll('.rv-note .rm-highlight')].map((e) => e.textContent).join(',') };
+  }), 15000).catch(() => null);
+  check('A note with a similar name shows, faded, on a page no note is', fz?.title?.endsWith(FUZZY_NOTE), fz?.title ?? 'none');
+  check('The letters that differ are highlighted', fz?.marked === 'kc', fz?.marked ?? '');
+  await shot('page-similar-name');
+  await openTestPage();
   fs.writeFileSync(path.join(small, 'Fresh CI note.md'), `Written while Roam was open, links [[${TEST_PAGE}]].\n`);
   const live = await waitFor('the new note to appear', async () => (await panelText()).includes('Fresh CI note'), 15000).then(() => true, () => false);
   check('A note added on disk shows up without a Rescan', live);
@@ -462,7 +475,7 @@ async function main() {
   const rows = await waitFor('both vault rows', async () => { const r = await vaultRows(); return r[BIG] && r[SMALL] && /notes?$/.test(r[SMALL].status) && r; }, 30000).catch(() => null);
   check('After a crash mid-scan the vault reads "Last scan didn\'t finish"', rows?.[BIG]?.status === "Last scan didn't finish", rows?.[BIG]?.status);
   check('…with its own Rescan button', rows?.[BIG]?.buttons.includes('Rescan'));
-  check('The other vault scans normally after the crash', rows?.[SMALL]?.status === '4 notes', rows?.[SMALL]?.status);
+  check('The other vault scans normally after the crash', rows?.[SMALL]?.status === '5 notes', rows?.[SMALL]?.status);
   await shot('after-crash-last-scan-didnt-finish');
   await clickButton('Rescan', BIG);
   const recovered = await waitFor('the row Rescan to finish', async () => (await statusOf(BIG)) === `${2 * NOTES} notes`, 150000).then(() => true, () => false);

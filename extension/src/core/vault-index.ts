@@ -222,6 +222,9 @@ export class VaultIndex {
   }
   aliasPaths(key: string): readonly string[] { return this.aliasIdx.get(key) ?? NONE; }
   tagPaths(key: string): readonly string[] { return this.tagIdx.get(key) ?? NONE; }
+  /** Notes whose name or alias is close to a page title. Null: the engine's FuzzyIndex does it
+   *  (only the SQLite index answers this itself). */
+  fuzzy(_title: string, _limit: number): { path: string; score: number; sim: number; kind: number }[] | null { return null; }
   note(path: string): Note | undefined { return this.notes.get(path); }
   /** A note's file size and time when it was read, if it is in the index. */
   stampOf(path: string): { size: number; mtime: number } | undefined { return this.notes.get(path); }

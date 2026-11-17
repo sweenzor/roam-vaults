@@ -22,6 +22,9 @@ const STYLES = `
 .rv-group-title{margin-right:8px}
 .rv-note{cursor:pointer;color:rgb(51,122,183);font-size:16px;line-height:24px}
 .rv-note:hover{text-decoration:underline}
+.rv-fuzzy .rv-note{color:rgba(51,122,183,.55)}
+.rv-fuzzy .rv-group-caret{opacity:.55}
+.rv-note .rm-highlight{margin:0;padding:0}
 .rv-vault{color:#8a9ba8}
 .rv-panel .rv-wl,.rv-viewer .rv-wl{color:rgb(16,107,163);cursor:pointer}
 .rv-panel .rv-wl:hover,.rv-viewer .rv-wl:hover,.rv-panel .rv-tag:hover,.rv-viewer .rv-tag:hover{text-decoration:underline}
@@ -142,7 +145,7 @@ export function renderPanel(el: HTMLElement, vaults: PanelVault[]) {
     const s = v.state;
     if (s.kind !== 'ready' || !s.result) continue;
     ready.push({ v, r: s.result });
-    n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
+    n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged, ...(s.result.fuzzy ?? [])].map((x) => x.path)).size;
   }
   if (!n) { el.replaceChildren(); return; }
   const collapsed = isCollapsed();
@@ -174,7 +177,7 @@ function sectionHead(label: string, open = true, tools: HTMLElement[] = []) {
 function resultBody(list: { v: PanelVault; r: PageResult }[], showVault: boolean): HTMLElement {
   const out = h('div', { class: 'rv-groups' });
   /** One note: caret + (vault/)path as a namespaced title (+ tag); content shows when open. The open-in-editor button lives in the viewer. */
-  const group = (v: PanelVault, key: string, path: string, defOpen: boolean, extras: (Node | null)[], content: () => HTMLElement) => {
+  const group = (v: PanelVault, key: string, path: string, defOpen: boolean, extras: (Node | null)[], content: () => HTMLElement, cls = '', marks: number[] = []) => {
     const k = `${v.id}\n${key}\n${path}`;
     const box = h('div', { class: 'rv-content' });
     const c = caret(false, 'rm-caret-showing rv-group-caret');
@@ -190,11 +193,11 @@ function resultBody(list: { v: PanelVault; r: PageResult }[], showVault: boolean
       set(open);
     });
     set(groupOpen.get(k) ?? defOpen);
-    return h('div', { class: 'rv-group' },
+    return h('div', { class: 'rv-group' + cls },
       h('div', { class: 'flex-h-box rv-group-head' }, c,
         h('div', { class: 'rm-ref-page-view-title rv-group-title' },
           h('span', { class: 'rv-note', title: `${v.name}/${path}`, onclick: () => v.act.view(path) },
-            showVault ? h('span', { class: 'rv-vault' }, `${v.name}/`) : null, path.replace(/\.md$/i, ''))),
+            showVault ? h('span', { class: 'rv-vault' }, `${v.name}/`) : null, ...marked(path.replace(/\.md$/i, ''), path.lastIndexOf('/') + 1, marks))),
         ...extras),
       box);
   };
@@ -214,6 +217,23 @@ function resultBody(list: { v: PanelVault; r: PageResult }[], showVault: boolean
       () => h('div', {}, ...b.lines.map((l) => blockEl(l.text, () => v.act.view(b.path, l.line))))));
   for (const { v, r } of list) for (const t of r.tagged) if (tagsOf.get(v)!.has(t.path))
     out.append(group(v, 'tag', t.path, false, [tagRef(v, t.path)], preview(v, t.path)));
+  // Notes with a name close to the title: last, faded, the letters that differ highlighted.
+  for (const { v, r } of list) for (const f of r.fuzzy ?? [])
+    out.append(group(v, 'fuzzy', f.path, false, [], preview(v, f.path), ' rv-fuzzy', f.marks));
+  return out;
+}
+
+/** Text with some ranges (flat [start, end) pairs, counted from `from`) in Roam's ^^highlight^^. */
+function marked(text: string, from: number, marks: number[]): (string | HTMLElement)[] {
+  const out: (string | HTMLElement)[] = [];
+  let at = 0;
+  for (let i = 0; i < marks.length; i += 2) {
+    const a = from + marks[i], b = from + marks[i + 1];
+    if (a > at) out.push(text.slice(at, a));
+    out.push(h('span', { class: 'rm-highlight' }, text.slice(a, b)));
+    at = b;
+  }
+  out.push(text.slice(at));
   return out;
 }
 
