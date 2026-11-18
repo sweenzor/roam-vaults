@@ -206,6 +206,16 @@ async function main() {
   check('The other vault scans normally after the crash', rows?.[SMALL]?.status === '4 notes', rows?.[SMALL]?.status);
   await shot('after-crash-last-scan-didnt-finish');
   await clickButton('Rescan', BIG);
+  // The bar is Roam's own (Blueprint's): the extension only gives it a margin, so Roam's CSS has to draw it.
+  const barOf = (partWay) => evalIn(([name, partWay]) => {
+    const row = [...document.querySelectorAll('.rv-settings-row')].find((r) => r.querySelector('.rv-settings-name')?.firstChild?.textContent.trim() === name);
+    const bar = row?.querySelector('.bp3-progress-bar'), meter = bar?.firstElementChild;
+    if (!meter || (partWay && !/^[1-9]\d?%$/.test(meter.style.width))) return null;
+    return { height: bar.getBoundingClientRect().height, width: Math.round(bar.getBoundingClientRect().width), meter: meter.style.width, placed: getComputedStyle(meter).position };
+  }, [BIG, partWay]);
+  const bar = await waitFor('the progress bar part way', () => barOf(true), 60000, 50).catch(() => waitFor('the progress bar', () => barOf(false), 5000, 50).catch(() => null));
+  await shot('scan-progress-bar');
+  check("A scan shows Roam's progress bar in the vault's row, part way along", bar?.height === 8 && bar.width > 100 && bar.placed === 'absolute' && bar.meter !== '100%', JSON.stringify(bar));
   const recovered = await waitFor('the row Rescan to finish', async () => (await statusOf(BIG)) === `${gen.notes + extra.notes} notes`, 150000).then(() => true, () => false);
   check("The row's Rescan scans the vault and clears the mark", recovered && !(await scanMarked(BIG)), await statusOf(BIG));
   await shot('after-row-rescan');

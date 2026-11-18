@@ -404,6 +404,7 @@ var STYLES = `
 .rv-settings-name{flex:1 1 100px;min-width:0;font-weight:500;overflow-wrap:anywhere}
 .rv-settings .bp3-button{flex:0 1 auto;white-space:normal;text-align:left}
 .rv-settings-status{font-weight:400;font-size:12px;color:#8a9ba8}
+.rv-settings .bp3-progress-bar{margin:5px 0 3px}
 .bp3-dark .rv-sec-head strong{color:#5c7080}
 `;
 function installStyles() {
@@ -848,6 +849,15 @@ function openLink(template, vault, path) {
 var openLabel = (template) => typeof template === "string" && template.trim() ? "Open in editor" : "Open in Obsidian";
 
 // src/main/settings.ts
+function scanProgress(text) {
+  const m = /^(\d+) of (\d+) notes/.exec(text);
+  return m && +m[2] ? Math.min(1, +m[1] / +m[2]) : -1;
+}
+function progressBar(p) {
+  const meter = h("div", { class: "bp3-progress-meter" });
+  meter.style.width = `${p < 0 ? 100 : Math.round(p * 100)}%`;
+  return h("div", { class: `bp3-progress-bar bp3-intent-primary${p < 0 ? "" : " bp3-no-stripes"}` }, meter);
+}
 function renderSettings(el, m) {
   const vs = m.vaults();
   const btn = (label, fn, cls = "") => h("button", { class: `bp3-button bp3-small ${cls}`, onclick: fn }, label);
@@ -858,7 +868,13 @@ function renderSettings(el, m) {
       vs.length ? h("div", { class: "rv-settings-list" }, ...vs.map((v) => h(
         "div",
         { class: "rv-settings-row" },
-        h("div", { class: "rv-settings-name" }, v.name, h("div", { class: "rv-settings-status" }, v.status)),
+        h(
+          "div",
+          { class: "rv-settings-name" },
+          v.name,
+          v.progress === void 0 ? null : progressBar(v.progress),
+          h("div", { class: "rv-settings-status" }, v.status)
+        ),
         // one group, so in a narrow column the buttons move below the name together
         h(
           "div",
@@ -1090,7 +1106,8 @@ function changed() {
 function settingsVault(v) {
   const s = v.state;
   const status = s.kind === "permission" ? "Needs permission again" : s.kind === "unfinished" ? "Last scan didn't finish" : s.kind === "indexing" ? `Indexing${s.detail ? ` ${s.detail}` : "\u2026"}` : s.kind === "error" ? `Couldn't read: ${s.detail}` : v.scanning ? `Indexing ${v.scanning}` : `${v.notes || "Ready"}${s.live ? "" : " \xB7 not live"}`;
-  return { id: v.id, name: v.name, status, needsPermission: s.kind === "permission", unfinished: s.kind === "unfinished", reconnect: () => v.connect(true), remove: () => removeVault(v) };
+  const progress = s.kind === "indexing" ? scanProgress(s.detail) : s.kind === "ready" && v.scanning ? scanProgress(v.scanning) : void 0;
+  return { id: v.id, name: v.name, status, progress, needsPermission: s.kind === "permission", unfinished: s.kind === "unfinished", reconnect: () => v.connect(true), remove: () => removeVault(v) };
 }
 var save = () => {
   changed();

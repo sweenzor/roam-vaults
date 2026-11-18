@@ -66,6 +66,7 @@ const STYLES = `
 .rv-settings-name{flex:1 1 100px;min-width:0;font-weight:500;overflow-wrap:anywhere}
 .rv-settings .bp3-button{flex:0 1 auto;white-space:normal;text-align:left}
 .rv-settings-status{font-weight:400;font-size:12px;color:#8a9ba8}
+.rv-settings .bp3-progress-bar{margin:5px 0 3px}
 .bp3-dark .rv-sec-head strong{color:#5c7080}
 `;
 

@@ -5,8 +5,9 @@
 # the others are compared with). All builds of a size run in the same Roam on the same runner, so the
 # numbers to read are the differences between columns.
 #
-# It also runs on pull requests that change the profiler itself (10,000 notes, base against the PR),
-# so it keeps working. Ordinary extension pull requests don't run it.
+# It also runs on every pull request that changes the extension, at 10,000 notes, base against the PR,
+# and fails when the PR is clearly slower or heavier than its base (extension/test/real-roam/gate.mjs
+# has the limits). A PR that looks worse is measured a second time before the run fails.
 #
 # Each size runs as its own job on its own runner. Results are in each job's summary and in the
 # profile-<size> artifact (RESULTS.md, profile.json, memory.log, screenshots). Needs the same
@@ -24,10 +25,8 @@ on:
         default: 'main'
   pull_request:
     paths:
+      - 'extension/**'
       - '.github/workflows/profile.yml'
-      - 'extension/test/real-roam/profile.mjs'
-      - 'extension/test/real-roam/roam.mjs'
-      - 'extension/test/vault-gen.mjs'
 
 permissions:
   contents: read
@@ -152,6 +151,7 @@ jobs:
           ROAM_PASSWORD: ${{ secrets.ROAM_PASSWORD }}
           ROAM_GRAPH: ${{ vars.ROAM_GRAPH || 'vault-spike-hosted' }}
           SIZES: ${{ matrix.size }}
+          GATE: ${{ github.event_name == 'pull_request' && '1' || '' }}
         run: |
           Xvfb :99 -screen 0 1440x900x24 >/dev/null 2>&1 &
           export DISPLAY=:99

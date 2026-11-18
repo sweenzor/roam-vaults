@@ -346,6 +346,31 @@ const rowHas = (q, text) => q.waitForFunction((text) => document.querySelector('
     window.__marks.includes('roam-vaults:scanning:My Vault') && localStorage.getItem('roam-vaults:scanning:My Vault') === null));
   await q.context().close();
 }
+{ // a scan shows Roam's progress bar in the vault's row, and only while it runs
+  const q = await fresh();
+  await q.evaluate(() => window.__ext.onload({ extensionAPI: window.__api }));
+  await mountSettings(q);
+  const bars = () => q.evaluate(() => { const seen = window.__bars; window.__bars = []; return seen; });
+  await q.evaluate(() => {
+    window.__bars = [];
+    new MutationObserver(() => {
+      const bar = document.querySelector('#settings-box .rv-settings-name > .bp3-progress-bar');
+      if (bar) window.__bars.push(`${bar.classList.contains('bp3-no-stripes') ? 'plain' : 'striped'} ${bar.firstChild.style.width} ${bar.nextSibling.textContent}`);
+    }).observe(document.querySelector('#settings-box'), { childList: true, subtree: true });
+  });
+  await press(q, 'Add vault folder');
+  await rowHas(q, '1 note');
+  const first = await bars();
+  if (process.env.RV_DEBUG) console.log('bars, first scan', first);
+  ok('a first scan shows the striped bar above its status, with no total to count towards', first.length > 0 && first[0].startsWith('striped 100% Indexing'));
+  ok('the bar is gone when the scan is done', (await q.locator('#settings-box .bp3-progress-bar').count()) === 0);
+  await press(q, 'Rescan');
+  await q.waitForFunction(() => window.__bars.length && !document.querySelector('#settings-box .bp3-progress-bar'), null, { timeout: 5000 }).catch(() => {});
+  const again = await bars();
+  if (process.env.RV_DEBUG) console.log('bars, rescan', again);
+  ok('a scan of a vault scanned before fills the bar by the notes counted', again.includes('plain 100% Indexing 1 of 1 notes') && (await q.locator('#settings-box .bp3-progress-bar').count()) === 0);
+  await q.context().close();
+}
 { // a scan that fails says so instead of staying on "Indexing"
   const q = await fresh();
   await q.evaluate(() => window.__ext.onload({ extensionAPI: window.__api }));

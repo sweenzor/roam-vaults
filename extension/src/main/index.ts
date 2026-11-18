@@ -4,7 +4,7 @@ import { loadVaults, saveVaults } from './store.ts';
 import { deleteNotes } from '../cache-db.ts';
 import { pickVaultFolder, ensurePermission } from './picker.ts';
 import { setScanMark, closeScanMark, unfinishedScans } from './scan-mark.ts';
-import { createSettingsPanel, type SettingsVault } from './settings.ts';
+import { createSettingsPanel, scanProgress, type SettingsVault } from './settings.ts';
 import { ATTR, installStyles, renderPanel, notify, removeToast, openViewer, closeViewer, type SectionState, type SectionActions, type PanelVault, type ViewerActions } from './ui.ts';
 import type { PageResult } from '../engine.ts';
 import { OPEN_WITH_SETTING, openLink, openLabel } from './open-with.ts';
@@ -159,7 +159,8 @@ function settingsVault(v: Vault): SettingsVault {
     : s.kind === 'error' ? `Couldn't read: ${s.detail}`
     : v.scanning ? `Indexing ${v.scanning}` // its files are being checked, and pages show what it has
     : `${v.notes || 'Ready'}${s.live ? '' : ' · not live'}`;
-  return { id: v.id, name: v.name, status, needsPermission: s.kind === 'permission', unfinished: s.kind === 'unfinished', reconnect: () => v.connect(true), remove: () => removeVault(v) };
+  const progress = s.kind === 'indexing' ? scanProgress(s.detail) : s.kind === 'ready' && v.scanning ? scanProgress(v.scanning) : undefined;
+  return { id: v.id, name: v.name, status, progress, needsPermission: s.kind === 'permission', unfinished: s.kind === 'unfinished', reconnect: () => v.connect(true), remove: () => removeVault(v) };
 }
 const save = () => { changed(); return saveVaults(vaults.map((v) => ({ id: v.id, handle: v.handle }))).catch((e) => console.warn('[roam-vaults]', e)); };
 

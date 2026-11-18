@@ -19,12 +19,18 @@
 // $OUT/RESULTS.md (a table per size with a column per build, and the change against the first
 // build). A step that fails or times out is recorded and the run goes on to the next build.
 //
+// With GATE=1 (pull requests) the run also fails when the last build is clearly worse than the first:
+// a number in LIMITS that is both that many times the first build's and over by that much. One run's
+// numbers move about, so a build that looks worse is measured a second time, first build and all, and
+// only what is over the limit both times fails the run.
+//
 // The pages it opens are created in the graph if missing (empty pages, the same titles every run).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { genVault } from './genvault.mjs';
+import { LIMITS, worseThan } from './gate.mjs';
 import {
   roam, log, sleep, evalIn, roamMB, serve, stopServing, launchRoam, killRoam, waitFor, signIn, openGraph,
   dismissDialogs, openPage, openVaultsTab, loadDevExtension, statusOf, addVault, clearExtensionState,
@@ -167,6 +173,8 @@ const METRICS = [
   ['startPeakMB', 'Later start, memory peak (MB over baseline)'],
   ['startSettledMB', 'Later start, settled (MB over baseline)'],
 ];
+const GATE = !!process.env.GATE && BUILDS.length > 1;
+const worse = []; // { size, build, base, keys, first: {key: [base, build]}, second: {…} }
 const fmt = (v) => v == null || Number.isNaN(v) ? '–' : Math.abs(v) >= 100 ? Math.round(v).toLocaleString('en-US') : (Math.round(v * 10) / 10).toString();
 function writeResults() {
   const md = [`# Vaults profile`, '',
@@ -190,6 +198,14 @@ function writeResults() {
     }
     for (const r of rows) for (const e of r.errors) md.push('', `**${r.build}:** ${e}`);
     md.push('');
+    for (const w of worse.filter((w) => w.size === size)) {
+      const name = Object.fromEntries(METRICS);
+      md.push(`**${w.build} is clearly worse than ${w.base}**, in both of two runs:`, '');
+      for (const k of w.keys) md.push(`- ${name[k]}: ${fmt(w.first[k][0])} to ${fmt(w.first[k][1])}, then ${fmt(w.second[k][0])} to ${fmt(w.second[k][1])} (fails at ${LIMITS[k][0]} times and ${LIMITS[k][1]} over)`);
+      md.push('');
+    }
+    if (GATE && rows.length >= BUILDS.length && !worse.some((w) => w.size === size) && !rows.some((r) => r.errors.length))
+      md.push(`${BUILDS.at(-1).label} is not clearly worse than ${BUILDS[0].label} in any of these.`, '');
   }
   md.push('Memory is the private memory (dirty + clean + swap) of every Roam process from /proc, sampled every 0.5 s, ' +
     'over Roam with the extension loaded and no vault. Timings come from one run each: compare builds measured in the same run.');
@@ -338,8 +354,8 @@ async function main() {
     const titles = picks.map((t) => /^\d{4}-\d\d-\d\d$/.test(t) ? roamDate(t) : t);
     gen.titles = null;
 
-    for (const build of BUILDS) {
-      const r = { size, notes: gen.notes, files: gen.files, mb: gen.mb, build: build.label, commit: build.commit, metrics: {}, errors: [] };
+    const measure = async (build, again = false) => {
+      const r = { size, notes: gen.notes, files: gen.files, mb: gen.mb, build: build.label + (again ? ', again' : ''), commit: build.commit, metrics: {}, errors: [] };
       results.push(r);
       try {
         if (build === BUILDS[0]) await ensurePages([NEUTRAL_PAGE, ...titles]);
@@ -355,6 +371,18 @@ async function main() {
         if (!roam.page) { await launchRoam(); await signIn(EMAIL, PASSWORD); await openGraph(GRAPH); }
         await clearExtensionState();
       } catch (e) { log('could not clear the extension state:', e.message.split('\n')[0]); }
+      writeResults();
+      return r;
+    };
+    const rows = [];
+    for (const build of BUILDS) rows.push(await measure(build));
+    const first = GATE && !rows.some((r) => r.errors.length) ? worseThan(rows[0].metrics, rows.at(-1).metrics) : [];
+    if (first.length) {
+      log(`${rows.at(-1).build} looks worse than ${rows[0].build} in ${first.join(', ')}: measuring both again`);
+      const a = await measure(BUILDS[0], true), b = await measure(BUILDS.at(-1), true);
+      const keys = worseThan(a.metrics, b.metrics).filter((k) => first.includes(k));
+      const pair = (x, y) => Object.fromEntries(keys.map((k) => [k, [x.metrics[k], y.metrics[k]]]));
+      if (keys.length) worse.push({ size, build: rows.at(-1).build, base: rows[0].build, keys, first: pair(rows[0], rows.at(-1)), second: pair(a, b) });
       writeResults();
     }
     fs.rmSync(vault, { recursive: true, force: true });
@@ -398,5 +426,5 @@ finally {
   await killRoam('SIGTERM').catch(() => {});
   stopServing();
   fs.rmSync(WORK, { recursive: true, force: true });
-  process.exit(failed || results.some((r) => r.errors.length) ? 1 : 0);
+  process.exit(failed || worse.length || results.some((r) => r.errors.length) ? 1 : 0);
 }

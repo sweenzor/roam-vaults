@@ -13,6 +13,9 @@
   progress.
 - Rescan, and the check at start, change the index in place instead of building a second one beside it,
   so pages keep their vault notes while it runs and it needs less memory.
+- While a vault is scanned, its row in settings shows a progress bar above the status. A vault that was
+  scanned before fills the bar by the notes counted. A first scan has no total to count towards, so its bar
+  is striped until the scan is done.
 
 ## 0.1.1 (2026-11-17)
 

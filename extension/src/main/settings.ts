@@ -9,6 +9,8 @@ export interface SettingsVault {
   name: string;
   /** e.g. "201 notes", "Indexing 50 of 201 notes", "Needs permission". */
   status: string;
+  /** While the vault is scanned, how far the scan is: 0 to 1, or -1 with no total to count towards. */
+  progress?: number;
   needsPermission: boolean;
   /** The last scan never finished, most likely because Roam ran out of memory: scan only on request. */
   unfinished: boolean;
@@ -23,6 +25,19 @@ export interface SettingsModel {
   subscribe(fn: () => void): () => void;
 }
 
+/** How far a scan is, by its status text ("120 of 500 notes"). */
+export function scanProgress(text: string): number {
+  const m = /^(\d+) of (\d+) notes/.exec(text);
+  return m && +m[2] ? Math.min(1, +m[1] / +m[2]) : -1;
+}
+
+/** Roam's progress bar (Blueprint's, styled by Roam's own CSS). With no total it is the striped bar, full width. */
+function progressBar(p: number) {
+  const meter = h('div', { class: 'bp3-progress-meter' });
+  meter.style.width = `${p < 0 ? 100 : Math.round(p * 100)}%`;
+  return h('div', { class: `bp3-progress-bar bp3-intent-primary${p < 0 ? '' : ' bp3-no-stripes'}` }, meter);
+}
+
 export function renderSettings(el: HTMLElement, m: SettingsModel) {
   const vs = m.vaults();
   const btn = (label: string, fn: () => void, cls = '') =>
@@ -31,7 +46,9 @@ export function renderSettings(el: HTMLElement, m: SettingsModel) {
     h('div', { class: 'rv-settings' },
       vs.length
         ? h('div', { class: 'rv-settings-list' }, ...vs.map((v) => h('div', { class: 'rv-settings-row' },
-            h('div', { class: 'rv-settings-name' }, v.name, h('div', { class: 'rv-settings-status' }, v.status)),
+            h('div', { class: 'rv-settings-name' }, v.name,
+              v.progress === undefined ? null : progressBar(v.progress),
+              h('div', { class: 'rv-settings-status' }, v.status)),
             // one group, so in a narrow column the buttons move below the name together
             h('div', { class: 'rv-settings-btns' },
               v.needsPermission ? btn('Reconnect', v.reconnect, 'bp3-intent-primary')
