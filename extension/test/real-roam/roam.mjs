@@ -195,6 +195,31 @@ export async function openVaultsTab() {
   await waitFor('the "Vaults (dev)" settings tab', () => clickLeaf('Vaults (dev)'), 20000);
   await waitFor('the vault list', () => evalIn(() => !!document.querySelector('.rv-settings')), 10000);
 }
+/** Sets the switch named `name` in the Vaults settings tab to `on` with a real click, and returns
+ *  its state afterwards. */
+export async function setSwitch(name, on) {
+  await openVaultsTab();
+  const state = () => evalIn((name) => {
+    const leaf = [...document.querySelectorAll('.bp3-dialog *')].find((e) => e.children.length === 0 && e.textContent.trim() === name);
+    for (let el = leaf; el && !el.matches('.bp3-dialog'); el = el.parentElement) {
+      const input = el.querySelector('input[type=checkbox]');
+      if (input) { document.querySelectorAll('[data-ci-switch]').forEach((e) => e.removeAttribute('data-ci-switch')); input.setAttribute('data-ci-switch', ''); return input.checked; }
+    }
+    return null;
+  }, name);
+  const now = await waitFor(`the "${name}" switch`, async () => { const s = await state(); return s === null ? null : { s }; }, 10000);
+  if (now.s !== on) {
+    const input = roam.page.locator('[data-ci-switch]');
+    await input.scrollIntoViewIfNeeded().catch(() => {});
+    // Blueprint hides the input under its painted switch, so click the label that wraps it
+    const label = roam.page.locator('label:has([data-ci-switch])');
+    if (await label.count()) await label.first().click(); else await input.click({ force: true });
+    await waitFor(`the "${name}" switch to turn ${on ? 'on' : 'off'}`, async () => (await state()) === on, 5000).catch(() => {});
+  }
+  const after = await state();
+  await dismissDialogs();
+  return after;
+}
 /** Clicks the icon button `name` (cog, link, ...) in the Roam Depot section header that reads `label`. */
 async function clickHeaderIcon(label, name) {
   const btn = roam.page.locator('.bp3-dialog .rm-extensions-installed__header', { hasText: label }).locator(`button.bp3-icon-${name}`).first();

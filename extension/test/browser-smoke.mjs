@@ -9,9 +9,9 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const dist = path.resolve(import.meta.dirname, '../dist');
 const page = `<!doctype html><meta charset=utf-8><title>fake roam</title>
 <style>body{font:14px system-ui;margin:0}.roam-article{max-width:720px;margin:24px auto}.rm-caret{display:inline-block;width:16px;text-align:center;color:#8a9ba8}.rm-caret-open::before{content:'▾'}.rm-caret-closed::before{content:'▸'}.flex-h-box{display:flex}</style><!-- stand-ins for Roam's caret styles -->
-<div class="roam-article"><h1 class="rm-title-display">Project Alpha</h1>
+<div class="roam-article"><div class="rm-title-display-container"><h1 class="rm-title-display">Project Alpha</h1></div>
 <div class="rm-block-children"><div>• Kickoff notes</div></div>
-<div><div class="rm-reference-main">1 Linked Reference</div></div></div>`;
+<div><div class="rm-reference-main"><div class="rm-reference-main__child-wrapper"><div class="rm-reference-container"><div class="flex-h-box"><div><strong>1 Linked References</strong></div></div></div><div class="rm-unlinked-reference-container"><div class="flex-h-box"><strong>Unlinked References</strong></div></div></div></div></div></div>`;
 const server = http.createServer((req, res) => {
   if (req.url === '/') { res.setHeader('content-type', 'text/html'); return res.end(page); }
   const f = path.join(dist, req.url);
@@ -64,7 +64,11 @@ await p.evaluate(async () => {
   window.roamAlphaAPI = {
     ui: { mainWindow: { getOpenPageOrBlockUid: async () => 'uid-alpha' } },
     pull: () => ({ ':node/title': 'Project Alpha' }),
+    // the unlinked-references count query: 3 for Project Alpha, none elsewhere
+    data: { async: { q: async (query, pat, title) => { window.__unlinkedAsked = [pat, title]; return title === 'Project Alpha' ? 3 : null; } } },
   };
+  window.__jumps = [];
+  Element.prototype.scrollIntoView = function () { window.__jumps.push(this.className || this.tagName); };
   window.__cmds = [];
   // Minimal stand-in for the React that Roam provides, enough to mount the settings component.
   window.__effects = [];
@@ -86,7 +90,7 @@ await p.evaluate(async () => {
 });
 // with no vaults the page shows nothing, and there are no palette commands (so no hotkeys)
 await p.waitForTimeout(300);
-const emptyPanel = await p.evaluate(() => [...document.querySelectorAll('.rv-panel')].every((e) => !e.textContent.trim()));
+const emptyPanel = await p.evaluate(() => [...document.querySelectorAll('.rv-panel')].every((e) => !e.textContent.trim()) && !document.querySelector('.rv-counts'));
 await p.evaluate(() => [...document.querySelectorAll('#settings-box button')].find((b) => b.textContent === 'Add vault folder').click());
 
 const text = async () => p.locator('.rv-panel').textContent();
@@ -111,6 +115,18 @@ ok('settings list shows the vault and its note count', /My Vault4 notes/.test(aw
 ok('one panel only', (await p.locator('.rv-panel').count()) === 1);
 ok('panel sits below Linked References', await p.evaluate(() =>
   document.querySelector('.rm-reference-main').compareDocumentPosition(document.querySelector('.rv-panel')) & Node.DOCUMENT_POSITION_FOLLOWING));
+
+// counts under the title: Roam's wording, linked then unlinked then vault, each jumping to its section
+const counts = () => p.evaluate(() => [...document.querySelectorAll('.rv-counts strong')].map((e) => e.textContent));
+ok('counts are off by default', !(await p.locator('.rv-counts').count()) && !(await p.evaluate(() => window.__unlinkedAsked)));
+ok('settings has a Reference counts switch', await p.evaluate(() => window.__settings.settings.some((s) => s.id === 'reference-counts' && s.action.type === 'switch')));
+await p.evaluate(() => window.__settings.settings.find((s) => s.id === 'reference-counts').action.onChange({ target: { checked: true } }));
+await p.waitForFunction(() => document.querySelectorAll('.rv-counts strong').length === 3, null, { timeout: 3000 }).catch(() => {});
+ok('counts line under the title reads linked, unlinked, external', JSON.stringify(await counts()) === JSON.stringify(['1 Linked References', '3 Unlinked References', '4 External Vault References']));
+ok('counts line sits right below the title', await p.evaluate(() => document.querySelector('.rm-title-display-container').nextElementSibling?.classList.contains('rv-counts')));
+ok('unlinked count searches the title in any case', await p.evaluate(() => JSON.stringify(window.__unlinkedAsked) === JSON.stringify(['(?i)Project Alpha', 'Project Alpha'])));
+await p.evaluate(() => document.querySelectorAll('.rv-counts strong').forEach((e) => e.click()));
+ok('each count jumps to its section', await p.evaluate(() => JSON.stringify(window.__jumps) === JSON.stringify(['flex-h-box', 'flex-h-box', 'rv-panel'])));
 
 // unfold the matching note inline, and follow a link inside it
 ok('header uses Roam wording, no vault prefix with one vault', t1.includes('4 External Vault References') && !t1.includes('My Vault/'));
@@ -190,10 +206,14 @@ await p.locator('#settings-box .rv-settings-row', { hasText: 'Work Notes' }).loc
 ok('remove deletes only that vault\'s cache', await p.waitForFunction(() => true).then(async () => { await p.waitForTimeout(300); const { keys } = await cacheKeys(); return !keys.some((k) => k.startsWith('Work Notes | ')) && keys.filter((k) => k.startsWith('My Vault | ')).length === 5; }));
 ok('settings list updates after remove', await p.waitForFunction(() => document.querySelectorAll('#settings-box .rv-settings-row').length === 1, null, { timeout: 3000 }).then(() => true, () => false));
 ok('remove drops only that vault', await p.waitForFunction(() => { const t = document.querySelector('.rv-panel').textContent; return !t.includes('Alpha budget') && t.includes('5 External Vault References') && !t.includes('My Vault/'); }, null, { timeout: 3000 }).then(() => true, () => false));
+ok('the vault count follows the panel', await p.waitForFunction(() => document.querySelector('.rv-counts')?.textContent.includes('5 External Vault References'), null, { timeout: 3000 }).then(() => true, () => false));
 
 // a page no vault note mentions shows nothing, like Roam's own empty reference sections
 await p.evaluate(() => { window.roamAlphaAPI.pull = () => ({ ':node/title': 'Nothing Mentions This' }); window.dispatchEvent(new HashChangeEvent('hashchange')); });
 ok('page with no matches shows nothing', await p.waitForFunction(() => { const e = document.querySelector('.rv-panel'); return e && e.dataset.title === 'Nothing Mentions This' && !e.textContent.trim() && getComputedStyle(e).display === 'none'; }, null, { timeout: 3000 }).then(() => true, () => false));
+ok('counts of zero are left out', await p.waitForFunction(() => document.querySelector('.rv-counts')?.textContent === '1 Linked References', null, { timeout: 3000 }).then(() => true, () => false));
+await p.evaluate(() => window.__settings.settings.find((s) => s.id === 'reference-counts').action.onChange({ target: { checked: false } }));
+ok('turning the switch off removes the counts line', await p.waitForFunction(() => !document.querySelector('.rv-counts'), null, { timeout: 3000 }).then(() => true, () => false));
 
 await p.evaluate(() => window.__ext.onunload());
 ok('unload removes everything', (await p.locator('[data-roam-vaults]').count()) === 0);

@@ -4,8 +4,8 @@ import { loadVaults, saveVaults } from './store.ts';
 import { deleteNotes } from '../cache-db.ts';
 import { pickVaultFolder, ensurePermission } from './picker.ts';
 import { setScanMark, closeScanMark, unfinishedScans } from './scan-mark.ts';
-import { createSettingsPanel, type SettingsVault } from './settings.ts';
-import { ATTR, installStyles, renderPanel, notify, removeToast, openViewer, closeViewer, type SectionState, type SectionActions, type PanelVault, type ViewerActions } from './ui.ts';
+import { createSettingsPanel, COUNTS_SETTING, type SettingsVault } from './settings.ts';
+import { ATTR, installStyles, renderPanel, renderCounts, h, type Count, notify, removeToast, openViewer, closeViewer, type SectionState, type SectionActions, type PanelVault, type ViewerActions } from './ui.ts';
 import type { PageResult } from '../engine.ts';
 import { OPEN_WITH_SETTING, openLink, openLabel } from './open-with.ts';
 
@@ -213,10 +213,90 @@ async function fill(panel: HTMLElement) {
     v.state.kind === 'ready' ? { id: v.id, name: v.name, act: v.act, state: { ...v.state, result: await v.query(title) } } : v));
   // A fill started later carries newer results, so this one must not draw over it.
   if (fills.get(panel) !== seq || panel.dataset.title !== title || !panel.isConnected) return;
-  renderPanel(panel, states);
+  panel.dataset.count = String(renderPanel(panel, states));
+  const refs = panel.previousElementSibling;
+  if (refs instanceof HTMLElement && refs.matches('.rm-reference-main')) syncCounts(refs, panel);
 }
 function refreshAll() {
   document.querySelectorAll<HTMLElement>(`.rv-panel[${ATTR}]`).forEach(fill);
+}
+
+// ---------- counts under the page title ----------
+/** The page title a references area belongs to: its own day in the daily-notes log, else the
+ *  page's. A zoomed-in block has no title, so it gets no counts. */
+function titleBox(scope: Element | null): HTMLElement | null {
+  const h1 = scope?.querySelector<HTMLElement>('.rm-title-display');
+  return h1 ? h1.closest<HTMLElement>('.rm-title-display-container') ?? h1 : null;
+}
+const scopeOf = (el: Element) => el.closest('.roam-log-page') ?? el.closest('.roam-article');
+/** Roam's own section header ("15 Linked References"), read from the page as Roam drew it. */
+function roamHeader(refs: Element, kind: 'Linked' | 'Unlinked'): HTMLElement | null {
+  const sel = kind === 'Linked' ? '.rm-reference-container > .flex-h-box strong' : '.rm-unlinked-reference-container > .flex-h-box strong';
+  return refs.querySelector<HTMLElement>(sel);
+}
+const countIn = (el: HTMLElement | null) => { const m = el?.textContent?.match(/^\s*(\d+)\s/); return m ? +m[1] : 0; };
+
+// Roam counts unlinked references only once that section is opened. Until then the count comes
+// from the same search Roam runs: blocks whose text has the title in any case, that don't link to
+// the page. Worked out once per page visit; an open section's own number wins.
+const unlinked = new Map<string, number | null>(); // null: being worked out, or no answer
+const UNLINKED_KEPT = 50;
+async function countUnlinked(title: string) {
+  if (unlinked.has(title)) return;
+  unlinked.set(title, null);
+  if (unlinked.size > UNLINKED_KEPT) unlinked.delete(unlinked.keys().next().value!);
+  const api = window.roamAlphaAPI;
+  const q = api?.data?.async?.q ?? api?.q;
+  if (!q) return;
+  const pattern = '(?i)' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    const n = await q.call(api?.data?.async?.q ? api.data.async : api,
+      '[:find (count ?b) . :in $ ?pat ?t :where [?p :node/title ?t] [(re-pattern ?pat) ?re] [?b :block/string ?s] [(re-find ?re ?s)] (not [?b :block/refs ?p])]',
+      pattern, title);
+    if (!unlinked.has(title)) return; // dropped meanwhile: a newer count is on its way
+    unlinked.set(title, typeof n === 'number' ? n : 0);
+    syncAllCounts();
+  } catch (e) { console.warn('[roam-vaults] unlinked count failed', e); }
+}
+
+/** The counts line is off unless the "Reference counts" setting is on. */
+let showCounts = false;
+function setShowCounts(on: boolean) {
+  if (on === showCounts) return;
+  showCounts = on;
+  if (!on) document.querySelectorAll(`.rv-counts[${ATTR}]`).forEach((n) => n.remove());
+  syncAllCounts();
+}
+
+function jumpTo(el: Element | null | undefined) { el?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+function syncCounts(refs: HTMLElement, panel: HTMLElement) {
+  if (!showCounts) return;
+  const box = titleBox(scopeOf(refs));
+  if (!box) return;
+  let line = box.nextElementSibling as HTMLElement | null;
+  if (!line?.matches(`.rv-counts[${ATTR}]`)) {
+    line = h('div', { class: 'rv-counts', [ATTR]: 'counts' });
+    box.after(line);
+  }
+  const title = panel.dataset.title ?? '';
+  if (!unlinked.has(title)) countUnlinked(title);
+  // The jumps look the sections up when clicked: Roam may have drawn them again since.
+  const here = () => { const s = scopeOf(line!); return s?.querySelector<HTMLElement>('.rm-reference-main') ?? null; };
+  const counts: Count[] = [];
+  const linked = roamHeader(refs, 'Linked');
+  if (countIn(linked)) counts.push({ label: linked!.textContent!.trim(), jump: () => jumpTo(roamHeader(here() ?? refs, 'Linked')?.closest('.flex-h-box')) });
+  const own = roamHeader(refs, 'Unlinked');
+  const u = countIn(own) || (unlinked.get(title) ?? 0);
+  if (u) counts.push({ label: `${u} Unlinked References`, jump: () => jumpTo(roamHeader(here() ?? refs, 'Unlinked')?.closest('.flex-h-box')) });
+  const ext = Number(panel.dataset.count ?? 0);
+  if (ext) counts.push({ label: `${ext} External Vault References`, jump: () => jumpTo(here()?.parentElement?.querySelector(`:scope > .rv-panel[${ATTR}]`) ?? panel) });
+  renderCounts(line, counts);
+}
+function syncAllCounts() {
+  document.querySelectorAll<HTMLElement>(`.rv-panel[${ATTR}]`).forEach((panel) => {
+    const refs = panel.previousElementSibling;
+    if (refs instanceof HTMLElement && refs.matches('.rm-reference-main')) syncCounts(refs, panel);
+  });
 }
 
 let scanning = false, scanAgain = false;
@@ -232,7 +312,8 @@ async function inject() {
       const title = await titleFor(refs);
       if (!title) continue;
       let panel = parent.querySelector<HTMLElement>(`:scope > .rv-panel[${ATTR}]`);
-      if (panel && panel.dataset.title === title) continue;
+      if (panel && panel.dataset.title === title) { syncCounts(refs, panel); continue; }
+      unlinked.delete(title); // a page visit: its unlinked count is worked out afresh
       if (!panel) {
         panel = document.createElement('div');
         panel.setAttribute(ATTR, 'panel');
@@ -240,6 +321,8 @@ async function inject() {
         parent.insertBefore(panel, refs.nextSibling); // below Roam's own references
       }
       panel.dataset.title = title;
+      panel.dataset.count = '0';
+      syncCounts(refs, panel);
       fill(panel);
     }
   } finally { scanning = false; }
@@ -254,6 +337,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
   const load = ++loads;
   cleanups.push(installStyles());
   settingsAPI = extensionAPI?.settings;
+  try { showCounts = settingsAPI?.get?.(COUNTS_SETTING) === true; } catch { showCounts = false; }
   workerUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }));
 
   // No command palette entries (so no hotkeys either): vaults are managed in the settings panel.
@@ -261,6 +345,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
     vaults: () => vaults.map(settingsVault),
     add: addVault,
     rescan: () => vaults.forEach((v) => v.rescan()),
+    countsChanged: setShowCounts,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
   });
   cleanups.push(() => listeners.clear());
@@ -290,6 +375,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
 
 function onunload() {
   loads++;
+  showCounts = false;
   cleanups.splice(0).forEach((f) => f());
   vaults.forEach((v) => v.stop()); vaults = [];
   URL.revokeObjectURL(workerUrl);

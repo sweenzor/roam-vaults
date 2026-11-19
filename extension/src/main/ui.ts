@@ -7,6 +7,9 @@ export const ATTR = 'data-roam-vaults';
 
 const STYLES = `
 .rv-panel{padding-top:12px;margin:0 -4px 0 -16px}
+.rv-counts{display:flex;flex-wrap:wrap;gap:4px 20px;margin:-20px 0 22px}
+.rv-counts:empty{display:none}
+.rv-counts strong{color:rgb(206,217,224);cursor:pointer}
 .rv-panel:empty{display:none}
 .rv-sec{margin-bottom:12px}
 .rv-sec-head{display:flex;align-items:center;height:24px;gap:2px;cursor:pointer;user-select:none}
@@ -131,11 +134,12 @@ const groupOpen = new Map<string, boolean>();
 const caret = (open: boolean, extra = '') =>
   h('span', { class: `bp3-icon-standard bp3-icon-caret-down rm-caret ${open ? 'rm-caret-open' : 'rm-caret-closed'} ${extra}` });
 
-export function renderPanel(el: HTMLElement, vaults: PanelVault[]) {
+/** Draws the panel and returns how many notes it lists. */
+export function renderPanel(el: HTMLElement, vaults: PanelVault[]): number {
   el.className = 'rv-panel';
   drawing.get(el)?.disconnect(); drawing.delete(el);
   // With no vaults connected the page shows nothing; vaults are added in the extension's settings.
-  if (!vaults.length) { el.replaceChildren(); return; }
+  if (!vaults.length) { el.replaceChildren(); return 0; }
   // Like Roam's own reference sections, nothing explains itself: no matches means no section,
   // and vaults that are indexing, unreadable or waiting for permission are shown only in settings.
   const ready: { v: PanelVault; r: PageResult }[] = [];
@@ -146,11 +150,23 @@ export function renderPanel(el: HTMLElement, vaults: PanelVault[]) {
     ready.push({ v, r: s.result });
     n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
   }
-  if (!n) { el.replaceChildren(); return; }
+  if (!n) { el.replaceChildren(); return 0; }
   const collapsed = isCollapsed();
   el.replaceChildren(h('div', { class: 'rv-sec' + (collapsed ? ' rv-collapsed' : '') },
     sectionHead(`${n} External Vault References`, !collapsed),
     h('div', { class: 'rv-sec-body' }, resultBody(el, ready, vaults.length > 1))));
+  return n;
+}
+
+// ---------- counts under the page title ----------
+// One line under the title with the page's reference counts, worded and styled like Roam's own
+// section headers, so what is further down shows without scrolling. A click jumps to that section.
+export interface Count { label: string; jump(): void }
+export function renderCounts(el: HTMLElement, counts: Count[]) {
+  const key = counts.map((c) => c.label).join('\n');
+  if (el.dataset.key === key) return; // unchanged: leave the DOM alone, so this doesn't feed the page observer
+  el.dataset.key = key;
+  el.replaceChildren(...counts.map((c) => h('strong', { onclick: c.jump }, c.label)));
 }
 
 // A page named like a common tag can have thousands of notes to list, and drawing them all at once

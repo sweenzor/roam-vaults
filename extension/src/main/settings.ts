@@ -15,8 +15,13 @@ export interface SettingsVault {
   reconnect(): void;
   remove(): void;
 }
+/** Roam setting holding whether the counts line shows under page titles. Off unless turned on. */
+export const COUNTS_SETTING = 'reference-counts';
+
 export interface SettingsModel {
   vaults(): SettingsVault[];
+  /** The "Reference counts" switch was flipped. */
+  countsChanged(on: boolean): void;
   add(): void;
   rescan(): void;
   /** Call fn whenever the vault list or a status changes; returns an unsubscribe function. */
@@ -55,6 +60,13 @@ export function createSettingsPanel(extensionAPI: any, m: SettingsModel) {
     description: 'Empty opens notes in Obsidian. For another editor, enter its link with {vault} and {file}, such as vscode://file/Users/you/Notes/{vault}/{file}',
     action: { type: 'input', placeholder: '' },
   };
+  // Roam's own switch setting: Roam saves it; off until it is turned on.
+  const counts = {
+    id: COUNTS_SETTING,
+    name: 'Reference counts',
+    description: 'Show how many Linked, Unlinked and External Vault References a page has, under its title. Click a count to jump to that section.',
+    action: { type: 'switch', onChange: (e: any) => m.countsChanged(typeof e?.target?.checked === 'boolean' ? e.target.checked : !!e) },
+  };
   if (React?.createElement && React.useRef && React.useEffect) {
     const VaultList = () => {
       const ref = React.useRef(null);
@@ -69,12 +81,12 @@ export function createSettingsPanel(extensionAPI: any, m: SettingsModel) {
     };
     extensionAPI.settings.panel.create({
       tabTitle: 'Vaults',
-      settings: [{ id: 'vaults', name: 'Vaults', description, action: { type: 'reactComponent', component: VaultList } }, openWith],
+      settings: [{ id: 'vaults', name: 'Vaults', description, action: { type: 'reactComponent', component: VaultList } }, counts, openWith],
     });
   } else {
     extensionAPI.settings.panel.create({
       tabTitle: 'Vaults',
-      settings: [{ id: 'add-vault', name: 'Add vault folder', description, action: { type: 'button', onClick: m.add, content: 'Add vault folder' } }, openWith],
+      settings: [{ id: 'add-vault', name: 'Add vault folder', description, action: { type: 'button', onClick: m.add, content: 'Add vault folder' } }, counts, openWith],
     });
   }
 }

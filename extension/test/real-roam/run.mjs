@@ -19,7 +19,7 @@ import { genVault } from './genvault.mjs';
 import {
   roam, log, sleep, evalIn, roamMB, serve, stopServing, launchRoam, killRoam, waitFor, shot, signIn, openGraph,
   dismissDialogs, openPage, openSettings, clickLeaf, loadDevExtension, vaultRows, statusOf, clickButton, addVault,
-  clearExtensionState, scanMarked, touchAll, panelText,
+  clearExtensionState, scanMarked, touchAll, panelText, setSwitch,
 } from './roam.mjs';
 
 const EMAIL = process.env.ROAM_EMAIL, PASSWORD = process.env.ROAM_PASSWORD;
@@ -90,6 +90,44 @@ function memRow(step, mb, limit) {
 }
 
 // ---------- the run ----------
+// ---------- counts under the page title ----------
+const countOf = (labels, kind) => +((labels ?? []).find((l) => l.includes(`${kind} Reference`))?.match(/^\d+/)?.[0] ?? 0);
+/** The counts line under the title: there, in order, and its numbers the ones Roam shows itself. */
+async function countsMatchRoam(title, vaultLabel = null) {
+  await openPage(title);
+  const sel = '.roam-article .rm-title-display-container + .rv-counts';
+  // give the unlinked count (an async query) a moment to land
+  await sleep(3000);
+  const line = await evalIn((sel) => { const l = document.querySelector(sel); return l ? [...l.querySelectorAll('strong')].map((e) => e.textContent) : null; }, sel);
+  check(`${title}: counts line under the title`, !!line, JSON.stringify(line));
+  if (vaultLabel) await shot('counts-under-title');
+  const kinds = (line ?? []).map((l) => (l.match(/(Linked|Unlinked|External Vault) References/) ?? [])[1]);
+  const order = ['Linked', 'Unlinked', 'External Vault'];
+  check(`${title}: counts read Linked, Unlinked, External`, kinds.every((k, i) => k && (i === 0 || order.indexOf(k) > order.indexOf(kinds[i - 1]))), JSON.stringify(kinds));
+  if (vaultLabel) check(`${title}: vault count matches the panel`, line?.includes(vaultLabel));
+  const roamLinked = await evalIn(() => +(document.querySelector('.roam-article .rm-reference-container > .flex-h-box strong')?.textContent.match(/^\s*(\d+)/)?.[1] ?? 0));
+  check(`${title}: linked count matches Roam's`, countOf(line, 'Linked') === roamLinked, `${countOf(line, 'Linked')} vs ${roamLinked}`);
+  // Roam counts unlinked references when the section is opened: open it and compare
+  // A real mouse click on its caret opens it (a script click on the header row does nothing)
+  const caret = roam.page.locator('.roam-article .rm-unlinked-reference-container > .flex-h-box .rm-caret').first();
+  await roam.page.locator('.roam-article .rm-unlinked-reference-container > .flex-h-box').first().hover().catch(() => {});
+  await caret.click({ force: true }).catch((e) => log('unlinked caret click failed:', e.message));
+  const roamUnlinked = await waitFor('Roam to count unlinked references', () => evalIn(() => {
+    const m = document.querySelector('.roam-article .rm-unlinked-reference-container > .flex-h-box strong')?.textContent.match(/^\s*(\d+)/);
+    return m ? { n: +m[1] } : false; // Roam writes "0 Unlinked References" when there are none; wrapped, as waitFor takes 0 for "not yet"
+  }), 15000).then((r) => r.n, () => null);
+  const unlinkedHtml = roamUnlinked === null ? await evalIn(() => document.querySelector('.roam-article .rm-unlinked-reference-container')?.outerHTML.slice(0, 400) ?? 'no unlinked section') : '';
+  if (unlinkedHtml) log('unlinked section:', unlinkedHtml);
+  check(`${title}: unlinked count matches Roam's`, roamUnlinked !== null && countOf(line, 'Unlinked') === roamUnlinked, `${countOf(line, 'Unlinked')} vs ${roamUnlinked}`);
+  if (roamUnlinked !== null) await caret.click({ force: true }).catch(() => {}); // fold it again
+  if (vaultLabel) {
+    await evalIn((sel) => [...document.querySelectorAll(`${sel} strong`)].find((e) => e.textContent.includes('External'))?.click(), sel);
+    await sleep(1500);
+    check(`${title}: clicking the vault count jumps to the panel`, await evalIn(() => { const r = document.querySelector('.roam-article .rv-panel')?.getBoundingClientRect(); return !!r && r.top >= 0 && r.top < innerHeight - 40; }));
+    await shot('counts-after-jump');
+  }
+}
+
 async function main() {
   if (!fs.existsSync(path.join(DIST, 'extension.js'))) throw new Error(`no build in ${DIST}: run npm run build first`);
   // vaults first, so writing them doesn't disturb the memory numbers
@@ -140,6 +178,22 @@ async function main() {
   const unfolded = await waitFor('the counterpart note to unfold', () => evalIn(() => document.querySelector('.roam-article .rv-preview')?.innerText.includes('The note for this page')), 5000).catch(() => false);
   check('Unfolding a note shows it inline', unfolded);
   await shot('page-external-vault-references');
+  // the counts line is off until the Reference counts switch is turned on
+  check('Reference counts switch turns off (an earlier run may have left it on)', (await setSwitch('Reference counts', false)) === false);
+  await openPage(TEST_PAGE);
+  await sleep(3000);
+  check('No counts line while Reference counts is off', await evalIn(() => !document.querySelector('.rv-counts')));
+  await shot('counts-off');
+  check('Reference counts switch turns on', (await setSwitch('Reference counts', true)) === true);
+  await countsMatchRoam(TEST_PAGE, '3 External Vault References');
+  // a page of the test graph with references of its own, when it has one
+  if (await evalIn((t) => !!window.roamAlphaAPI.q('[:find ?p . :in $ ?t :where [?p :node/title ?t]]', t), 'Kernel meeting protocol')) await countsMatchRoam('Kernel meeting protocol');
+  // settings sync through the graph, so leave the switch off for the next run
+  check('Reference counts switch turns off again', (await setSwitch('Reference counts', false)) === false);
+  await openPage(TEST_PAGE);
+  await sleep(2000);
+  check('Turning Reference counts off removes the line', await evalIn(() => !document.querySelector('.rv-counts')));
+  await openPage(TEST_PAGE);
   fs.writeFileSync(path.join(small, 'Fresh CI note.md'), `Written while Roam was open, links [[${TEST_PAGE}]].\n`);
   const live = await waitFor('the new note to appear', async () => (await panelText()).includes('Fresh CI note'), 15000).then(() => true, () => false);
   check('A note added on disk shows up without a Rescan', live);
