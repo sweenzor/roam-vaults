@@ -1,6 +1,6 @@
 // DOM pieces: styles, toasts, the "External Vault References" panel and the read-only note viewer.
 // Plain DOM with Blueprint 3 class names (Roam ships Blueprint), so no bundled UI library.
-import type { PageResult } from '../engine.ts';
+import type { PageResult, FolderMatch } from '../engine.ts';
 import { renderMarkdown, inline } from './markdown.ts';
 
 export const ATTR = 'data-roam-vaults';
@@ -29,6 +29,16 @@ const STYLES = `
 .rv-br{color:rgb(167,182,194)}
 .rv-panel .rv-tag,.rv-viewer .rv-tag,.rv-tagref{color:rgb(167,182,194);cursor:pointer}
 .rv-tagref{font-size:14px;margin-right:8px}
+.rv-count{color:#8a9ba8;font-size:13px;margin-left:6px}
+.rv-files{padding:2px 0 4px}
+.rv-tree-kids{margin-left:18px}
+.rv-file{display:flex;gap:2px;align-items:center;font-size:14px;line-height:22px;cursor:pointer;min-width:0}
+.rv-file-icon{flex:0 0 auto;width:16px}
+.rv-file-name{color:rgb(51,122,183);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.rv-file:hover .rv-file-name{text-decoration:underline}
+.rv-file.rv-dir .rv-file-name{color:inherit}
+.rv-file.rv-other .rv-file-name{color:#8a9ba8}
+.rv-files-more{color:#8a9ba8;font-size:13px;padding-top:2px}
 .bp3-dark .rv-panel .rv-wl,.bp3-dark .rv-viewer .rv-wl{color:rgb(72,175,240)}
 .rv-content{margin-left:20px}
 .rv-block{display:flex;align-items:flex-start;cursor:pointer}
@@ -144,7 +154,7 @@ export function renderPanel(el: HTMLElement, vaults: PanelVault[]) {
     const s = v.state;
     if (s.kind !== 'ready' || !s.result) continue;
     ready.push({ v, r: s.result });
-    n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
+    n += new Set([...(s.result.folders ?? []), ...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged].map((x) => x.path)).size;
   }
   if (!n) { el.replaceChildren(); return; }
   const collapsed = isCollapsed();
@@ -181,12 +191,12 @@ function sectionHead(label: string, open = true, tools: HTMLElement[] = []) {
   return head;
 }
 
-/** Notes from every ready vault: the notes that are this page first, then notes linking here,
+/** Notes from every ready vault: folders named like this page first, then the notes that are this page, then notes linking here,
  *  then notes only tagged here. With more than one vault, each title starts with its vault name. */
 function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[], showVault: boolean): HTMLElement {
   const out = h('div', { class: 'rv-groups' });
   /** One note: caret + (vault/)path as a namespaced title (+ tag); content shows when open. The open-in-editor button lives in the viewer. */
-  const group = (v: PanelVault, key: string, path: string, defOpen: boolean, tag: string | undefined, content: () => HTMLElement) => {
+  const group = (v: PanelVault, key: string, path: string, defOpen: boolean, tag: string | undefined, content: () => HTMLElement, folder?: { total: number }) => {
     const k = `${v.id}\n${key}\n${path}`;
     const box = h('div', { class: 'rv-content' });
     const c = caret(false, 'rm-caret-showing rv-group-caret');
@@ -205,8 +215,12 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
     return h('div', { class: 'rv-group' },
       h('div', { class: 'flex-h-box rv-group-head' }, c,
         h('div', { class: 'rm-ref-page-view-title rv-group-title' },
-          h('span', { class: 'rv-note', title: `${v.name}/${path}`, onclick: () => v.act.view(path) },
-            showVault ? h('span', { class: 'rv-vault' }, `${v.name}/`) : null, path.replace(/\.md$/i, ''))),
+          folder
+            ? h('span', { class: 'rv-note', title: `Show or hide the files in ${v.name}/${path}/`, onclick: () => c.click() },
+              showVault ? h('span', { class: 'rv-vault' }, `${v.name}/`) : null, `${path}/`)
+            : h('span', { class: 'rv-note', title: `${v.name}/${path}`, onclick: () => v.act.view(path) },
+              showVault ? h('span', { class: 'rv-vault' }, `${v.name}/`) : null, path.replace(/\.md$/i, ''))),
+        folder ? h('span', { class: 'rv-count', title: `${folder.total} files in this folder` }, `${folder.total}`) : null,
         tag ? h('span', { class: 'rv-tagref' }, `#${tag}`) : null),
       box);
   };
@@ -221,6 +235,9 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
     const tags = tagsOf.get(v)!, t = tags.get(path); tags.delete(path);
     return t;
   };
+  for (const { v, r } of list) for (const f of r.folders ?? []) {
+    rows.push(() => group(v, 'folder', f.path, false, undefined, () => fileList(v, f), { total: f.total }));
+  }
   for (const { v, r } of list) for (const c of r.counterparts) {
     const tag = tagOnce(v, c.path);
     rows.push(() => group(v, 'page', c.path, false, tag, preview(v, c.path)));
@@ -261,6 +278,61 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
     io.observe(end);
     drawing.set(panel, io);
   } else if (drawn < rows.length) out.append(...more(rows.length));
+  return out;
+}
+
+/** One level of a folder's files: subfolders (folded, with their file counts), then notes, then
+ *  other files. Notes open in the viewer, other files in the editor set for notes. */
+interface Tree { dirs: Map<string, Tree>; notes: string[]; other: string[]; total: number }
+function treeOf(files: string[]): Tree {
+  const root: Tree = { dirs: new Map(), notes: [], other: [], total: 0 };
+  for (const rel of files) {
+    let t = root;
+    t.total++;
+    const parts = rel.split('/');
+    for (const part of parts.slice(0, -1)) {
+      let d = t.dirs.get(part);
+      if (!d) t.dirs.set(part, d = { dirs: new Map(), notes: [], other: [], total: 0 });
+      d.total++;
+      t = d;
+    }
+    (/\.md$/i.test(rel) ? t.notes : t.other).push(rel);
+  }
+  return root;
+}
+const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+const MAX_ROWS_PER_LEVEL = 300;
+
+function fileList(v: PanelVault, f: FolderMatch) {
+  const level = (t: Tree, at: string): HTMLElement => {
+    const rows: HTMLElement[] = [];
+    for (const name of [...t.dirs.keys()].sort(byName)) {
+      const sub = t.dirs.get(name)!, rel = at + name + '/';
+      const box = h('div', { class: 'rv-tree-kids', hidden: true });
+      const c = caret(false, 'rm-caret-showing rv-group-caret');
+      const toggle = () => {
+        const open = box.hidden;
+        box.hidden = !open;
+        c.classList.toggle('rm-caret-open', open); c.classList.toggle('rm-caret-closed', !open);
+        if (open && !box.childNodes.length) box.append(level(sub, rel));
+      };
+      rows.push(h('div', { class: 'rv-file rv-dir', title: `Show or hide the files in ${rel}`, onclick: toggle },
+        c, h('span', { class: 'rv-file-name' }, name + '/'), h('span', { class: 'rv-count' }, `${sub.total}`)), box);
+    }
+    const files = [...t.notes.sort(byName), ...t.other.sort(byName)];
+    for (const rel of files.slice(0, MAX_ROWS_PER_LEVEL)) {
+      const note = /\.md$/i.test(rel), full = `${f.path}/${rel}`, name = rel.slice(rel.lastIndexOf('/') + 1);
+      rows.push(h('div', {
+        class: 'rv-file' + (note ? '' : ' rv-other'),
+        title: note ? `Read ${rel}` : `Open ${rel} with ${v.act.openLabel().replace(/^Open in /, '')}`,
+        onclick: () => (note ? v.act.view(full) : v.act.openOutside(full)),
+      }, h('span', { class: 'rv-file-icon' }), h('span', { class: 'rv-file-name' }, note ? name.replace(/\.md$/i, '') : name)));
+    }
+    if (files.length > MAX_ROWS_PER_LEVEL) rows.push(h('div', { class: 'rv-files-more' }, `and ${files.length - MAX_ROWS_PER_LEVEL} more files here`));
+    return h('div', { class: 'rv-files' }, ...rows);
+  };
+  const out = level(treeOf(f.files), '');
+  if (f.total > f.files.length) out.append(h('div', { class: 'rv-files-more' }, `${f.total - f.files.length} more files not listed`));
   return out;
 }
 

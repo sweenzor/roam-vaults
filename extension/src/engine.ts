@@ -31,8 +31,11 @@ export interface Counterpart { path: string; title: string; how: NoteHow; label:
 export interface BacklinkLine { line: number; text: string; embed: boolean; unresolved: boolean }
 export interface Backlink { path: string; title: string; lines: BacklinkLine[] }
 export interface Tagged { path: string; title: string; tag: string }
+/** A folder named like the page, with the files under it as paths inside the folder. */
+export interface FolderMatch { path: string; files: string[]; total: number }
 export interface PageResult {
   title: string;
+  folders: FolderMatch[];
   counterparts: Counterpart[];
   backlinks: Backlink[];
   tagged: Tagged[];
@@ -54,6 +57,8 @@ const MD = /\.md$/i;
 export const noteTitle = (path: string) => path.slice(path.lastIndexOf('/') + 1).replace(MD, '');
 const MAX_LINE = 240;
 const MAX_BACKLINK_NOTES = 200;
+const MAX_FOLDERS = 20;
+const MAX_FOLDER_FILES = 20_000;
 /** Note text kept for the lines shown under a page, in characters (a megabyte or two). */
 const MAX_TEXT_CHARS = 1_000_000;
 const READS_AT_ONCE = 16;
@@ -314,7 +319,18 @@ export class VaultEngine {
     const tagged: Tagged[] = [];
     for (const t of a.tagged) if (!seenTag.has(t.path)) { seenTag.add(t.path); tagged.push({ path: t.path, title: noteTitle(t.path), tag: t.tag }); }
     tagged.sort((x, y) => x.title.localeCompare(y.title) || (x.path < y.path ? -1 : x.path > y.path ? 1 : 0));
-    return { title, counterparts, backlinks, tagged };
+    return { title, folders: this.folders(title), counterparts, backlinks, tagged };
+  }
+
+  /** Folders named like the page, each with the files under it. */
+  private folders(title: string): FolderMatch[] {
+    // A folder inside one already listed (a copy kept in a subfolder, say) is shown by that one.
+    const dirs: string[] = [];
+    for (const d of this.idx.foldersNamed(title)) if (!dirs.some((top) => d.startsWith(top + '/'))) dirs.push(d);
+    return dirs.slice(0, MAX_FOLDERS).map((dir) => {
+      const all = this.idx.filesUnder(dir).map((p) => p.slice(dir.length + 1));
+      return { path: dir, total: all.length, files: all.slice(0, MAX_FOLDER_FILES) };
+    });
   }
 
   async read(path: string): Promise<string> { return this.fs.readText(path); }

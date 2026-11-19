@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A folder named like the page now shows first under External Vault References, folded, with how many files
+  it holds. Unfold it to browse what's inside: subfolders unfold in turn, notes open in the viewer and other
+  files in your editor. Vaults kept by folder, with one folder per project or area, now show their material on
+  those pages even when no note links to them.
 - A page with thousands of vault notes to list (one named like a common tag, for example) no longer
   holds Roam up while they are all drawn. The first notes are drawn, and the rest as the page is scrolled.
 - Scanning a large vault uses much less memory at its peak, on Rescan most of all. The files are walked

@@ -37,9 +37,14 @@ those as well as `[[wikilinks]]`.
 
 One section covers every vault you add, and its count is the total across vaults. Notes are titled by
 their path in the vault, such as `Projects/Kernel meeting protocol`. With more than one vault, the vault
-name comes first in grey, such as `work-vault/Projects/Kernel meeting protocol`. The section lists three
-kinds of notes, in this order:
+name comes first in grey, such as `work-vault/Projects/Kernel meeting protocol`. The section lists four
+kinds of entries, in this order:
 
+- **The folder that is this page**, listed first and folded, with how many files it holds. A folder matches
+  when it has the same name as the page (in any letter case), or for a namespaced page `A/B`, when its path
+  ends in `A/B`. This suits vaults kept by folder, such as one folder per project. Unfold it to browse the
+  files inside: subfolders unfold in turn, notes open in the viewer, and other files (PDFs, images) open in
+  your editor. A folder of the same name inside one already listed isn't listed again.
 - **The note that is this page**, listed first and folded. A note matches when it has the same name (in any
   letter case), lists the page title as an alias, sits at the same folder path (Roam `A/B` and `A/B.md`), or
   is the daily note for the same date. If several notes match, they're all shown. Click the caret to unfold
@@ -129,8 +134,8 @@ row. If it keeps happening, remove the vault or choose a smaller folder.
 <details>
 <summary><b>A note I expect isn't listed</b></summary>
 
-Check that it matches one of the rules in [What it shows](#what-it-shows): same name, an alias, the
-same folder path, the same daily-note date, a `[[link]]` or a `#tag`. Similar titles aren't matched
+Check that it matches one of the rules in [What it shows](#what-it-shows): same name, a folder of the
+same name, an alias, the same folder path, the same daily-note date, a `[[link]]` or a `#tag`. Similar titles aren't matched
 yet. Only `.md` files are read. If you just changed the note and it doesn't show yet, click **Rescan**.
 
 </details>

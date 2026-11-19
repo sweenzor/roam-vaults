@@ -66,6 +66,10 @@ export class VaultIndex {
   linkers = new Map<string, (Note | number)[]>();
   aliasIdx = new Map<string, string[]>();               // nfcLower(alias) -> paths
   tagIdx = new Map<string, string[]>();                 // nfcLower(tag) -> paths (incl. parent tags)
+  /** Every folder that holds a file, at any depth -> how many files are under it. */
+  dirs = new Map<string, number>();
+  /** nfcLower(folder name) -> the folders with that name. */
+  dirByName = new Map<string, string[]>();
   listeners: FileListener[] = [];
   /** Tie-break duplicates by shared folder prefix with the linking note (not Obsidian behaviour; see report). */
   preferNearby = false;
@@ -77,6 +81,11 @@ export class VaultIndex {
     this.files.set(path, nameKey);
     const arr = this.byName.get(nameKey);
     if (arr) arr.push(path); else this.byName.set(nameKey, [path]);
+    for (let d = dirOf(path); d; d = dirOf(d)) {
+      const n = this.dirs.get(d);
+      this.dirs.set(d, (n ?? 0) + 1);
+      if (n === undefined) push(this.dirByName, nfcLower(baseOf(d)), d);
+    }
     return nameKey;
   }
   private unregister(path: string): string | undefined {
@@ -86,7 +95,30 @@ export class VaultIndex {
     const arr = this.byName.get(nameKey)!;
     arr.splice(arr.indexOf(path), 1);
     if (!arr.length) this.byName.delete(nameKey);
+    for (let d = dirOf(path); d; d = dirOf(d)) {
+      const n = this.dirs.get(d)! - 1;
+      if (n) { this.dirs.set(d, n); continue; }
+      this.dirs.delete(d);
+      pull(this.dirByName, nfcLower(baseOf(d)), d);
+    }
     return nameKey;
+  }
+
+  /** Folders a page title names: same folder name in any letter case, or for a namespaced
+   *  title "A/B", a folder whose path ends in a/b. */
+  foldersNamed(title: string): string[] {
+    const key = nfcLower(title.normalize('NFC')).replace(/^\/+|\/+$/g, '');
+    if (!key) return [];
+    const cands = this.dirByName.get(baseOf(key)) ?? NONE;
+    const hit = key.includes('/') ? cands.filter((d) => { const k = nfcLower(d); return k === key || k.endsWith('/' + key); }) : cands.slice();
+    return hit.sort((a, b) => depth(a) - depth(b) || (a < b ? -1 : a > b ? 1 : 0));
+  }
+
+  /** The files under a folder, at any depth. */
+  filesUnder(dir: string): string[] {
+    const pre = dir + '/', out: string[] = [];
+    for (const p of this.files.keys()) if (p.startsWith(pre)) out.push(p);
+    return out;
   }
 
   // ---------- resolution ----------
