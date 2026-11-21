@@ -92,7 +92,7 @@ const setSwitch = async (label, on) => {
   await sleep(300);
 };
 const closePopover = async () => { await roam.page.mouse.click(700, 740); await sleep(300); };
-/** HTTP status of the file's storage record: 200 while it is stored, 404 once deleted. */
+/** HTTP status of the file's storage record: 200 while it is stored, 403 (or 404) once deleted. */
 const stored = (url) => evalIn((url) => fetch(url.replace(/\?.*$/, '')).then((r) => r.status, () => 0), url);
 
 // files an aborted earlier run left in storage can be passed in to be removed with this run's
@@ -190,7 +190,7 @@ try {
   await evalIn(() => document.querySelector('.confirmation-content-dialog .confirm-button').click());
   await waitFor('the files to leave the list', async () => !(await rowOf(NAMES.dropped)) && !(await rowOf(NAMES.doc)), 30000);
   const after = [await stored(urls.dropped), await stored(urls.doc), await stored(urls.kept)];
-  check('confirming deletes the files from Roam\'s storage', after[0] === 404 && after[1] === 404, `storage answers ${after[0]}, ${after[1]}`);
+  check('confirming deletes the files from Roam\'s storage', [403, 404].includes(after[0]) && [403, 404].includes(after[1]), `storage answers ${after[0]}, ${after[1]}`);
   check('the file still in a block is untouched', after[2] === 200);
   await setSwitch('Unused', false);
   await closePopover();

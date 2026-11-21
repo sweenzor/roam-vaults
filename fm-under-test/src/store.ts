@@ -64,9 +64,11 @@ export async function forget(graph: string, keys: string[]) {
   await done(t);
 }
 
-/** Firebase Storage metadata for a download URL. The JSON endpoint is the URL without ?alt=media. */
-export async function fetchMeta(url: string, signal?: AbortSignal): Promise<Meta | null> {
+/** Firebase Storage metadata for a download URL. The JSON endpoint is the URL without ?alt=media.
+ *  'gone' when storage no longer has the file (it answers 403 for a deleted file, or 404). */
+export async function fetchMeta(url: string, signal?: AbortSignal): Promise<Meta | 'gone' | null> {
   const r = await fetch(url.replace(/[?#].*$/, ''), { signal });
+  if (r.status === 403 || r.status === 404) return 'gone';
   if (!r.ok) return null;
   const m = await r.json();
   return { size: +m.size || 0, created: Date.parse(m.timeCreated) || 0, fileName: m.metadata?.['file-name'] ?? null, type: m.contentType ?? null };

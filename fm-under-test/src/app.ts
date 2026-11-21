@@ -86,6 +86,8 @@ export class App {
       for (const k of this.view?.inView() ?? []) { const r = todo.get(k); if (r) { todo.delete(k); return r; } }
       for (const [k, r] of todo) { todo.delete(k); return r; }
     };
+    // an unused file that storage no longer has (deleted some other way) has nothing left to manage
+    const gone: string[] = [];
     let pending: [string, Meta][] = [], last = Date.now();
     const flush = async (force = false) => {
       if (!pending.length || (!force && Date.now() - last < 400)) return;
@@ -99,12 +101,19 @@ export class App {
       for (let r = next(); r && !ctl.signal.aborted; r = next()) {
         try {
           const m = await fetchMeta(r.url, ctl.signal);
-          if (m) { this.meta.set(r.key, m); pending.push([r.key, m]); }
+          if (m === 'gone') { if (r.unused) gone.push(r.key); }
+          else if (m) { this.meta.set(r.key, m); pending.push([r.key, m]); }
         } catch { /* offline or aborted: try again next time */ }
         await flush();
       }
     }));
-    if (!ctl.signal.aborted) await flush(true);
+    if (ctl.signal.aborted) return;
+    await flush(true);
+    if (gone.length) {
+      await forget(graphName(), gone).catch(() => {});
+      this.rows = this.rows.filter((r) => !gone.includes(r.key));
+      this.view?.setRows(this.rows);
+    }
   }
 
   /** Builds the view for the main window and starts filling it. */
