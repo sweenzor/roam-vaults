@@ -19,49 +19,22 @@ try {
   await signIn(EMAIL, PASSWORD);
   await openGraph(GRAPH);
   await sleep(3000);
-  put('api', await evalIn(() => {
-    const a = window.roamAlphaAPI, keys = (o) => (o ? Object.keys(o) : null);
-    return { top: keys(a), file: keys(a.file), ui: keys(a.ui), leftSidebar: keys(a.ui.leftSidebar), mainWindow: keys(a.ui.mainWindow),
-      data: keys(a.data), util: keys(a.util), graph: a.graph, platform: keys(a.platform),
-      libs: { React: window.React?.version, ReactDOM: !!window.ReactDOM, Blueprint: keys(window.Blueprint)?.slice(0, 5), BPcore: !!window.Blueprint?.Core, idb: !!window.idb, FullCalendar: !!window.FullCalendar } };
-  }));
-  put('attrs', await evalIn(() => window.roamAlphaAPI.data.q('[:find ?a :where [_ ?a _]]').map((r) => String(r[0])).sort()));
-  put('fileBlocks', await evalIn(() => window.roamAlphaAPI.data.q('[:find ?s ?ct :where [?b :block/string ?s] [?b :create/time ?ct] [(clojure.string/includes? ?s "firebasestorage")]]').slice(0, 10)));
-  // upload a tiny PNG to the test graph, read its storage metadata, then delete it
-  const up = await evalIn(async () => {
-    const b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    const file = new File([bytes], 'fm-probe.png', { type: 'image/png' });
-    const r = { };
-    try { r.url = await window.roamAlphaAPI.file.upload({ file, toast: { hide: true } }); } catch (e) { r.uploadError = String(e); return r; }
-    const u = new URL(typeof r.url === 'string' ? r.url.match(/https:[^)\s]+/)?.[0] ?? r.url : '');
-    const meta = u.origin + u.pathname;
-    for (const [k, url, opt] of [['meta', meta], ['metaToken', meta + '?token=' + (u.searchParams.get('token') ?? '')],
-      ['list', u.origin + u.pathname.replace(/%2F[^%]*$/, '').replace(/\/o\/.*/, '/o') + '?prefix=' + encodeURIComponent(decodeURIComponent(u.pathname.split('/o/')[1]).replace(/[^/]*$/, '')) + '&maxResults=3'],
-      ['head', r.url.match?.(/https:[^)\s]+/)?.[0] ?? r.url, { method: 'HEAD' }]]) {
-      try { const q = await fetch(url, opt); r[k] = { status: q.status, headers: [...q.headers].filter(([h]) => /length|type|modified|date|etag|goog/i.test(h)), body: k === 'head' ? '' : (await q.text()).slice(0, 1500) }; }
-      catch (e) { r[k] = { error: String(e) }; }
+  put('probe2', await evalIn(async () => {
+    const a = window.roamAlphaAPI, r = {};
+    const src = (f) => (typeof f === 'function' ? f.toString().slice(0, 900) : String(f));
+    r.mw = Object.fromEntries(Object.entries(a.ui.mainWindow).map(([k, v]) => [k, src(v)]));
+    r.components = a.ui.components ? Object.fromEntries(Object.entries(a.ui.components).map(([k, v]) => [k, src(v)])) : null;
+    r.react = a.ui.react ? Object.fromEntries(Object.entries(a.ui.react).map(([k, v]) => [k, src(v)])) : null;
+    r.openView = (() => { try { return a.ui.mainWindow.getOpenView(); } catch (e) { return String(e); } })();
+    r.firebase = typeof window.firebase === 'object' ? Object.keys(window.firebase).slice(0, 30) : typeof window.firebase;
+    const leftover = 'https://firebasestorage.googleapis.com/v0/b/firescript-577a2.appspot.com/o/imgs%2Fapp%2Fvault-spike-hosted%2FHTvnh2nyAY.png?alt=media&token=6f01695f-13d6-4bb9-bc11-4377b5ccd81b';
+    try { r.get = await a.file.get({ url: leftover }).then((f) => ({ name: f.name, size: f.size, type: f.type, lastModified: f.lastModified })); } catch (e) { r.getError = String(e); }
+    try { await a.file.delete({ url: leftover }); r.deleted = true; } catch (e) { r.deleteError = String(e); }
+    r.afterDelete = await fetch(leftover.replace(/\?.*/, '')).then((q) => q.status, (e) => String(e));
+    if (window.firebase?.storage) {
+      try { const l = await window.firebase.storage().ref('imgs/app/vault-spike-hosted').listAll(); r.listAll = l.items.length; } catch (e) { r.listAllError = String(e); }
     }
-    try { r.get = await window.roamAlphaAPI.file.get({ url: r.url }).then((f) => ({ name: f.name, size: f.size, type: f.type, lastModified: f.lastModified })); } catch (e) { r.getError = String(e); }
-    try { await window.roamAlphaAPI.file.delete({ url: r.url }); r.deleted = true; } catch (e) { r.deleteError = String(e); }
     return r;
-  });
-  put('upload', up);
-  // left sidebar + All Pages DOM
-  put('leftSidebar', await evalIn(() => {
-    const sb = document.querySelector('.roam-sidebar-container, .roam-sidebar-content');
-    return sb ? sb.outerHTML.replace(/\s+/g, ' ').slice(0, 5000) : null;
-  }));
-  await shot('daily-notes');
-  const clicked = await evalIn(() => { const el = [...document.querySelectorAll('.log-button, .roam-sidebar-content *')].find((e) => e.textContent.trim() === 'All Pages'); el?.click(); return !!el; });
-  log('clicked All Pages', clicked, roam.page.url());
-  await sleep(3000);
-  await shot('all-pages');
-  put('allPagesUrl', roam.page.url());
-  put('allPages', await evalIn(() => (document.querySelector('.roam-body-main') ?? document.body).outerHTML.replace(/\s+/g, ' ').slice(0, 12000)));
-  put('allPagesStyles', await evalIn(() => {
-    const pick = (sel) => { const e = document.querySelector(sel); if (!e) return null; const s = getComputedStyle(e); return { cls: e.className, font: s.font, color: s.color, bg: s.backgroundColor, pad: s.padding, border: s.borderBottom }; };
-    return { th: pick('.roam-body-main th'), td: pick('.roam-body-main td'), table: pick('.roam-body-main table'), input: pick('.roam-body-main input'), title: pick('.roam-body-main h1, .roam-body-main .rm-title-display') };
   }));
 } catch (e) {
   log('ERROR', e.message);
