@@ -144,6 +144,40 @@ async function main() {
   const live = await waitFor('the new note to appear', async () => (await panelText()).includes('Fresh CI note'), 15000).then(() => true, () => false);
   check('A note added on disk shows up without a Rescan', live);
 
+  // a folder named like the page (PR #32): added while Roam is open, browsed, then removed again
+  const folder = path.join(small, 'Projects', TEST_PAGE);
+  fs.mkdirSync(path.join(folder, 'Files'), { recursive: true });
+  fs.writeFileSync(path.join(folder, 'Plan.md'), 'The plan kept in the folder, with no link back.\n');
+  fs.writeFileSync(path.join(folder, 'Files', 'spec.pdf'), '%PDF-1.4\n');
+  const firstRow = () => evalIn(() => {
+    const g = document.querySelector('.roam-article .rv-panel .rv-group');
+    return g && { title: g.querySelector('.rv-note')?.textContent.trim(), count: g.querySelector('.rv-count')?.textContent.trim(), folded: g.querySelector('.rv-content')?.hidden };
+  });
+  const folderRow = await waitFor('the folder to be listed', async () => { const r = await firstRow(); return r?.title?.endsWith(`Projects/${TEST_PAGE}/`) && r; }, 20000).catch(() => null);
+  check('A folder named like the page is listed first, without a Rescan', !!folderRow, JSON.stringify(folderRow ?? await firstRow()));
+  check('The folder row is folded and counts its files', folderRow?.folded === true && folderRow?.count === '2', `count ${folderRow?.count}`);
+  const tHead = await panelText();
+  check('The folder counts as one more External Vault Reference', tHead.includes('5 External Vault References'), tHead.split('\n')[0]);
+  await roam.page.locator('.roam-article .rv-panel .rv-group').first().locator('.rv-group-caret').first().click().catch(() => {});
+  const inside = await waitFor('the folder to unfold', () => evalIn(() => {
+    const names = [...document.querySelectorAll('.roam-article .rv-panel .rv-group:first-child .rv-files .rv-file-name')].map((e) => e.textContent.trim());
+    return names.length ? names : null;
+  }), 5000).catch(() => null);
+  check('Unfolding the folder lists its subfolder, then its note', JSON.stringify(inside) === JSON.stringify(['Files/', 'Plan']), JSON.stringify(inside));
+  await shot('page-folder-unfolded');
+  await roam.page.locator('.roam-article .rv-panel .rv-file.rv-dir').first().click().catch(() => {});
+  const sub = await waitFor('the subfolder to unfold', () => evalIn(() => document.querySelector('.roam-article .rv-panel .rv-tree-kids .rv-file-name')?.textContent.trim()), 5000).catch(() => null);
+  check('Unfolding the subfolder lists the other file', sub === 'spec.pdf', String(sub));
+  await roam.page.locator('.roam-article .rv-panel .rv-files > .rv-file:not(.rv-dir):not(.rv-other)').first().click().catch(() => {});
+  const viewed = await waitFor('the note viewer', () => evalIn(() => { const v = document.querySelector('.rv-viewer'); return v && v.innerText.includes('The plan kept in the folder') && v.querySelector('h3')?.textContent.trim(); }), 8000).catch(() => null);
+  check('A note in the folder opens in the viewer', viewed === 'Plan', String(viewed));
+  await shot('page-folder-note-viewer');
+  await roam.page.keyboard.press('Escape');
+  await sleep(500);
+  fs.rmSync(path.join(small, 'Projects'), { recursive: true });
+  const gone = await waitFor('the folder row to go', async () => { const r = await firstRow(); return r && !r.title?.endsWith('/') && !(await panelText()).includes(`Projects/${TEST_PAGE}/`); }, 20000).then(() => true, () => false);
+  check('Removing the folder on disk removes its row', gone, JSON.stringify(await firstRow()));
+
   // large vault: memory
   await addVault(big);
   const cold = sample('cold-scan', 90000, 60000);
