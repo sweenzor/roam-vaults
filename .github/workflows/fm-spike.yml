@@ -1,0 +1,42 @@
+# Throwaway: probes Roam for the File Manager extension. Only on this branch.
+name: FM spike
+on:
+  push:
+    branches: [claude/project-thread-t65kzo]
+permissions:
+  contents: read
+concurrency:
+  group: real-roam
+  cancel-in-progress: false
+jobs:
+  spike:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      OUT: ${{ github.workspace }}/real-roam-out
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Roam, Xvfb and Playwright
+        run: |
+          curl -fsSL -o /tmp/roam.deb https://roam-electron-deploy.s3.us-east-2.amazonaws.com/roam-research_0.0.42_amd64.deb
+          sudo apt-get update -qq && sudo apt-get install -y -qq /tmp/roam.deb xvfb
+          npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/pw" playwright-core@1.63.0
+      - name: Probe
+        working-directory: extension
+        env:
+          ROAM_EMAIL: ${{ secrets.ROAM_EMAIL }}
+          ROAM_PASSWORD: ${{ secrets.ROAM_PASSWORD }}
+        run: |
+          Xvfb :99 -screen 0 1440x900x24 >/dev/null 2>&1 &
+          export DISPLAY=:99
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node test/real-roam/fm-spike.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fm-spike
+          path: real-roam-out/
