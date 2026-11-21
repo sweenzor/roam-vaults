@@ -1,0 +1,16 @@
+{
+  "name": "roam-file-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "File Manager for Roam Research: see, sort and clean up the files uploaded to your graph.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --experimental-strip-types --no-warnings --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0",
+    "typescript": "5.6.3"
+  }
+}

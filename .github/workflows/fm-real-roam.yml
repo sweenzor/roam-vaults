@@ -1,0 +1,56 @@
+# Throwaway, on this branch only: runs the File Manager extension (sweenzor/roam-file-manager, copied
+# under fm-under-test/) in real Roam with this repository's test account, until that repository has
+# its own secrets.
+name: FM real Roam
+on:
+  push:
+    branches: [claude/project-thread-t65kzo]
+permissions:
+  contents: read
+jobs:
+  fm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ROAM_VERSION: 0.0.42
+      ROAM_DEB_SHA512: x9Ln56V7TlDO6zDcXK0AKDeAmz5LSX1oWpKbV6w7CUzbMc/LESJ7qLQs0Ap/nPpwPCf7jUypd0LS05SsJbD/HA==
+      OUT: ${{ github.workspace }}/real-roam-out
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build
+        working-directory: fm-under-test
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck && npm test && npm run build
+      - name: Install Roam, Xvfb and Playwright
+        run: |
+          deb=/tmp/roam.deb
+          curl -fsSL -o "$deb" "https://roam-electron-deploy.s3.us-east-2.amazonaws.com/roam-research_${ROAM_VERSION}_amd64.deb"
+          echo "$(echo "$ROAM_DEB_SHA512" | base64 -d | od -An -v -tx1 | tr -d ' \n')  $deb" | sha512sum -c -
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "$deb" xvfb
+          npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/pw" playwright-core@1.63.0
+      - name: Run in real Roam
+        working-directory: fm-under-test
+        env:
+          ROAM_EMAIL: ${{ secrets.ROAM_EMAIL }}
+          ROAM_PASSWORD: ${{ secrets.ROAM_PASSWORD }}
+          CLEANUP_URLS: https://firebasestorage.googleapis.com/v0/b/firescript-577a2.appspot.com/o/imgs%2Fapp%2Fvault-spike-hosted%2FHTvnh2nyAY.png?alt=media&token=6f01695f-13d6-4bb9-bc11-4377b5ccd81b
+        run: |
+          Xvfb :99 -screen 0 1440x900x24 >/dev/null 2>&1 &
+          export DISPLAY=:99
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node test/real-roam/run.mjs
+      - name: Summary
+        if: always()
+        run: '[ -f "$OUT/RESULTS.md" ] && cat "$OUT/RESULTS.md" >> "$GITHUB_STEP_SUMMARY" || true'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fm-real-roam
+          path: real-roam-out/
+          if-no-files-found: ignore
