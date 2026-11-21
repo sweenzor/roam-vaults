@@ -93,6 +93,12 @@ await page.waitForSelector('.rfm-view');
 await page.click('.rm-left-sidebar__daily-notes');
 await page.waitForTimeout(1500);
 check('Daily Notes closes the list', await page.evaluate(() => !document.querySelector('.rfm-view')));
+// from Daily Notes, back to Daily Notes: no route change, and the list still closes
+await page.click('.rm-left-sidebar__all-files');
+await page.waitForSelector('.rfm-view');
+await page.click('.rm-left-sidebar__daily-notes');
+await page.waitForTimeout(1500);
+check('Daily Notes closes the list when Roam was already on Daily Notes', await page.evaluate(() => !document.querySelector('.rfm-view') && !!document.querySelector('.roam-log-container')));
 await page.click('.rm-left-sidebar__all-files');
 await page.waitForSelector('.rfm-view');
 await page.click('.rm-left-sidebar__all-pages');

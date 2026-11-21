@@ -40,7 +40,6 @@ jobs:
         env:
           ROAM_EMAIL: ${{ secrets.ROAM_EMAIL }}
           ROAM_PASSWORD: ${{ secrets.ROAM_PASSWORD }}
-          CLEANUP_URLS: https://firebasestorage.googleapis.com/v0/b/firescript-577a2.appspot.com/o/imgs%2Fapp%2Fvault-spike-hosted%2FHTvnh2nyAY.png?alt=media&token=6f01695f-13d6-4bb9-bc11-4377b5ccd81b
         run: |
           Xvfb :99 -screen 0 1440x900x24 >/dev/null 2>&1 &
           export DISPLAY=:99

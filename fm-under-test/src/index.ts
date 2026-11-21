@@ -45,6 +45,22 @@ function onload() {
   obs.observe(document.querySelector('.roam-app') ?? document.body, { childList: true, subtree: true });
   cleanup.push(() => { obs.disconnect(); row.remove(); });
 
+  // Roam closes a main-window component when its route changes. Going to where Roam already was
+  // (Daily Notes, opened from Daily Notes) changes no route, so the list would stay up: close it on
+  // any click in the left sidebar and on picking a page in Find or Create Page.
+  const leave = (e: Event) => {
+    if (!app.mounted) return;
+    const t = e.target as HTMLElement | null;
+    if (!t?.closest || t.closest('.rm-left-sidebar__all-files')) return;
+    const nav = e.type === 'keydown'
+      ? (e as KeyboardEvent).key === 'Enter' && !!t.closest('.rm-find-or-create-wrapper')
+      : !!t.closest('.roam-sidebar-content .log-button, .roam-sidebar-content .starred-pages, .rm-find-or-create-wrapper .rm-menu-item, .rm-find-or-create-wrapper .rm-search-list-item');
+    if (nav) api.ui.mainWindow.closeComponent(ID);
+  };
+  document.addEventListener('click', leave, true);
+  document.addEventListener('keydown', leave, true);
+  cleanup.push(() => { document.removeEventListener('click', leave, true); document.removeEventListener('keydown', leave, true); });
+
   // Roam can't list a graph's stored files, so the extension notes the files it sees in blocks, to
   // know later which of them no block uses any more. A scan when Roam is idle, then now and then.
   const first = setTimeout(() => app.scan().catch(() => {}), 8000);
