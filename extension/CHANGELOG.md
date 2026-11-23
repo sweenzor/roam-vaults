@@ -46,6 +46,9 @@
 - OKF bundles are found by the `okf_version` in their `index.md`. In a bundle a note is named by its
   `title`, `type` and `status` are page references (the page **Metric** lists the notes of that type),
   and a link is read from the note's own folder first and, when it starts with `/`, from the bundle's.
+- A property's name is a page, as an attribute's name is in Roam: the page **author** lists every note
+  with an `author` property, and a `Name::` written in a note (as Roam's Markdown export writes one)
+  counts the same. Tags, aliases and `cssclasses` are left out: they are Roam's tags and aliases.
 
 ## 0.2.0 (2026-11-22)
 

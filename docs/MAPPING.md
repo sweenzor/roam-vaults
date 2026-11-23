@@ -35,7 +35,7 @@ Roam has none, leave it out rather than invent UI.
 | Image and PDF embed | Image with a width; PDF viewer | Inline image; `{{pdf}}` | Images show inline, read from the folder, with Obsidian's width. A PDF is a link | PDFs are not shown |
 | Tag, nested `#a/b` | Tag pane; a parent tag counts its children | A tag is a page; `a/b` is a namespace | The tag's page lists tagged notes, parents too | None |
 | Frontmatter `tags` | The list form only. A comma string makes no tags in 1.15.1 | Tags in a block | The list form, or one tag as a string | None |
-| Properties | Typed widgets; links are clickable | Attributes `Name:: value`; the attribute's page lists every use | `key:: value` blocks as Roam would hold them: no quotes, tags as tags, a date as a link to that day, a list on one line as its values | No list of notes per property |
+| Properties | Typed widgets; links are clickable | Attributes `Name:: value`; the attribute's page lists every use | `key:: value` blocks as Roam would hold them: no quotes, tags as tags, a date as a link to that day, a list on one line as its values. A property's name is a page that lists the notes with it, and so is a `Name::` in the body | None |
 | Links in properties | Count as backlinks | References inside an attribute | Counted as backlinks, drawn as the attribute block | None |
 | List item | Indented items | Blocks | Roam blocks, nested, with caret and children | None |
 | Numbered list | Numbers | A parent block viewed as numbered | Numbers in place of bullets, as Roam draws them | None |
@@ -114,10 +114,9 @@ What the extension copies from Roam, measured in Linked References:
 
 ## What is left, in rough order
 
-1. A page per property key, listing the notes that have it.
-2. Linked References' search and filter on the vault section, and its right-click menus.
-3. Unlinked mentions from vaults. This needs note text, so it belongs with full-text search.
-4. Reference-style Markdown links (`[text][ref]` with `[ref]: target.md`).
+1. Linked References' search and filter on the vault section, and its right-click menus.
+2. Unlinked mentions from vaults. This needs note text, so it belongs with full-text search.
+3. Reference-style Markdown links (`[text][ref]` with `[ref]: target.md`).
 
 ## What cannot be mapped
 

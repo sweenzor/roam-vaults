@@ -89,7 +89,9 @@ is drawn as in Linked References, and works the same way:
   the folder on your device.
 - Tables are drawn as Roam's tables, and numbered lists keep their numbers.
 - Properties read as Roam attributes. A date in a property (`created: 2026-11-09`) links to that day, so
-  the day's page in Roam lists the note. A link or a path to a note in a property counts as a link too.
+  the day's page in Roam lists the note. A link or a path to a note in a property counts as a link too. A
+  property's name is a page too, as an attribute's is in Roam: the page **author** lists the notes with an
+  `author` property.
 
 ![A line from a nested list, with its path above it and the items under it opened](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/nested-line.png)
 

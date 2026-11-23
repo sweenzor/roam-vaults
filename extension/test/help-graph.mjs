@@ -100,6 +100,7 @@ await page.evaluate(async ({ PAGES, COLD, STEPS, TABLE }) => {
     await add(api.pull('[:block/uid]', [':node/title', title])[':block/uid'], blocks);
   }
   await api.createPage({ page: { title: 'Supplier', uid: 'rvhgsuppl' } });
+  if (!api.pull('[:block/uid]', [':node/title', 'Oven'])) await api.createPage({ page: { title: 'Oven', uid: 'rvhgoven0' } });
   await api.createPage({ page: { title: 'Proofing', uid: 'rvhgproof' } });
   await api.createBlock({ location: { 'parent-uid': 'rvhgproof', order: 0 }, block: { string: 'Warm', uid: 'rvhgwarm0', heading: 2, open: true } });
   await api.createBlock({ location: { 'parent-uid': 'rvhgwarm0', order: 0 }, block: { string: 'two hours at 26°', uid: 'rvhgwarm1' } });
@@ -375,6 +376,14 @@ await shot('12-numbered-and-table.png');
   check(`a Markdown table is Roam's table: ${tables[0].length} cells in the same place, size and style`, tables[0].length === 9 && JSON.stringify(tables[0]) === JSON.stringify(tables[1]), '\n  roam  ' + tables[0].join('\n        ') + '\n  vault ' + tables[1].join('\n        '));
 }
 fs.writeFileSync(path.join(OUT, 'measured.json'), JSON.stringify(await measure(), null, 1));
+
+// ---------- an attribute's page ----------
+// "Oven:: ..." on the daily page is a reference on the page Oven in Roam; the same line in the vault is one too
+await open('Oven');
+await page.waitForSelector('.rv-panel .rm-reference-item');
+await page.waitForTimeout(500);
+await shot('14-attribute-page.png');
+compare(await measure(), 'an attribute\'s page');
 
 // ---------- an OKF bundle ----------
 await open('Supplier');

@@ -52,7 +52,7 @@ test('parser extracts expected links and skips code/comments', () => {
   assert.ok(n.tags.includes('y1984') && !n.tags.includes('1984'));
   assert.ok(n.tags.includes('émoji🙂'));
   assert.ok(!n.tags.includes('notatag'));
-  const want = ['prop:Beta', 'prop:Ridley Scott', 'prop:Unquoted', 'wiki:Target', 'wiki:Target', 'wiki:Target#Heading', 'wiki:Target#^abc123', 'wiki:#Local heading',
+  const want = ['prop:related', 'prop:people', 'prop:bad', 'prop:Beta', 'prop:Ridley Scott', 'prop:Unquoted', 'wiki:Target', 'wiki:Target', 'wiki:Target#Heading', 'wiki:Target#^abc123', 'wiki:#Local heading',
     'wiki!:Note', 'wiki!:image.png', 'wiki!:Board.canvas', 'wiki!:Daily.base', 'wiki:Table', 'wiki:Note#Heading', 'wiki:Spaced', 'wiki:Café', 'wiki:Final',
     'md:Target.md', 'md:Target Name.md', 'md:Target Name.md', 'md:../up/Rel.md#Sec', 'md!:pics/a b.png'];
   // escaped \[[Escaped]] : we keep it (Obsidian renders it as a link too) – document
@@ -168,4 +168,9 @@ test('OKF: title names a note, index.md stands for its folder, a log\'s days are
   assert.deepEqual(m.associations('Index').notes, []);
   const day = m.associations('November 21st, 2026');
   assert.deepEqual(day.links.map((l) => [l.src, l.line]), [['log.md', 0]]);
+});
+
+test('a property\'s name is a page, in frontmatter and as Roam writes it in the body', () => {
+  const n = parseNote('n.md', '---\nauthor: Ann\ntags: [a]\naliases: [b]\ncssclasses: wide\n---\n- Source:: a book\n    1. Rating:: 4\nNot an attribute: here\n`Code:: x`\n');
+  assert.deepEqual(n.links.map((l) => [l.target, l.line]), [['author', 1], ['Source', 6], ['Rating', 7]]);
 });
