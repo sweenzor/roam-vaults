@@ -99,6 +99,8 @@ is drawn as in Linked References, and works the same way:
 - Pictures kept in the vault (`![[photo.png]]`, `![alt](photos/photo.png)`) show inline. They are read from
   the folder on your device.
 - Tables are drawn as Roam's tables, and numbered lists keep their numbers.
+- A footnote (`[^1]`) is a block reference to the footnote, which shows its text, and the footnote itself
+  is a block at the end of the note. An inline footnote (`^[text]`) is a block reference with its text.
 - Properties read as Roam attributes. A date in a property (`created: 2026-11-09`) links to that day, so
   the day's page in Roam lists the note. A link or a path to a note in a property counts as a link too. A
   property's name is a page too, as an attribute's is in Roam: the page **author** lists the notes with an
@@ -127,7 +129,7 @@ returns to where you were, and links between notes work inside it. Shift-click o
 instead. If you use Obsidian, click **Open in Obsidian** beside the note's title to jump to the note there. To use another
 editor, see [Opening notes in another editor](#opening-notes-in-another-editor).
 
-![A note in the main window, opened from a line, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/note-viewer.png)
+![A note in the main window, opened from a line, with a footnote drawn as a block reference and an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/note-viewer.png)
 
 ### Search and filter
 

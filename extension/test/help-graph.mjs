@@ -68,7 +68,7 @@ const FILES = {
   'pictures/crumb.png': picture(),
   // an OKF bundle: notes named by their title, type and status as pages, paths from the note's folder
   'kb/index.md': '---\nokf_version: "0.3"\ntitle: Bakery suppliers\n---\n# Mills\n\n* [Stone Mill](mills/stone-mill.md)\n',
-  'kb/mills/stone-mill.md': '---\ntype: Supplier\ntitle: Stone Mill\nstatus: stable\n---\n# Flour\n\nRye and spelt, delivered on Mondays. See [the rye order][rye].\n\n[rye]: ../orders/rye.md\n',
+  'kb/mills/stone-mill.md': '---\ntype: Supplier\ntitle: Stone Mill\nstatus: stable\n---\n# Flour\n\nRye and spelt, delivered on Mondays.[^early] See [the rye order][rye].\n\n[rye]: ../orders/rye.md\n[^early]: Before seven in the morning.\n',
   'kb/orders/rye.md': '---\ntype: Order\ntitle: Weekly rye order\n---\nTwenty sacks.\n',
   'Wholesale.md': exported(PAGES.Wholesale), 'Days/2026/July 9th, 2026.md': exported(PAGES['July 9th, 2026']), 'Sourdough.md': exported(PAGES[PAGE]) };
 
@@ -458,6 +458,10 @@ await page.waitForSelector('.rv-note-page .roam-block-container');
 await page.waitForTimeout(300);
 check('it opens as a page named by its title', (await page.locator('.rv-note-page .rm-title-display').innerText()) === 'Stone Mill');
 check('its status is a page reference too', (await page.locator('.rv-note-page .rm-page-ref', { hasText: 'stable' }).count()) === 1);
+await page.waitForFunction(() => document.querySelector('.rv-note-page .rm-block-ref')?.textContent === 'Before seven in the morning.', null, { timeout: 5000 }).catch(() => {});
+check('a footnote is a block reference showing the footnote, which is a block of its own',
+  (await page.locator('.rv-note-page .rm-block-ref').first().innerText()) === 'Before seven in the morning.'
+  && (await page.locator('.rv-note-page .rm-block-main', { hasText: /^Before seven in the morning\.$/ }).count()) === 1);
 check('a reference-style link is drawn as the link it stands for, its definition hidden',
   (await page.locator('.rv-note-page a.rm-alias--page', { hasText: 'the rye order' }).count()) === 1
   && !(await page.locator('.rv-note-page').innerText()).includes('[rye]'));

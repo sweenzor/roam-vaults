@@ -91,7 +91,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: stri
 };
 
 /** Where an inline thing can start. What starts there is tried in order; what fits nothing is text. */
-const START = /!?\[|`|%%|\*\*|__|\^\^|==|~~|\*|#|\{\{|https?:\/\//g;
+const START = /!?\[|\^\[|`|%%|\*\*|__|\^\^|==|~~|\*|#|\{\{|https?:\/\//g;
 const RE_TAG = /^#([\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/u;
 const RE_URL = /^https?:\/\/[^\s<>]*[^\s<>.,;:!?)\]}'"]/;
 const RE_TODO = /^\{\{(?:\[\[)?(TODO|DONE)(?:\]\])?\}\}/;
@@ -138,8 +138,21 @@ function thing(parent: HTMLElement, s: string, i: number, tok: string, flush: ()
     const c = s.indexOf('%%', i + 2);
     return put(c < 0 ? s.length : c + 2);
   }
+  if (tok === '^[') {
+    // an inline footnote, ^[text]: Roam has no footnotes, so it is a block reference with its text
+    const c = closing(s, i + 2, '[', ']');
+    if (c < 0 || c === i + 2) return i;
+    const ref = el('span', 'rm-block-ref dont-focus-block');
+    spans(ref, s.slice(i + 2, c));
+    return put(c + 1, ref);
+  }
   const embed = tok[0] === '!';
   const o = embed ? i + 1 : i;
+  if (tok === '[' && s[o + 1] === '^') {
+    // a footnote, [^1]: a block reference to the footnote's own block, which shows its text
+    const m = /^\[\^([^\]\s]+)\](?!:)/.exec(s.slice(o, o + 120));
+    if (m) return put(o + m[0].length, blockRef('', `#[^${m[1]}]`, m[0]));
+  }
   if (tok.endsWith('[')) {
     if (s[o + 1] === '[') {
       // [[Page]], [[Page|alias]], [[a [[nested]] title]]

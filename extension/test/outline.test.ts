@@ -201,3 +201,12 @@ test('reference-style links read as the inline links they stand for; their defin
     ['Suppliers/Stone Mill.md', 3, 'Mill'],
   ].sort((a, b) => +a[1]! - +b[1]!));
 });
+
+test('a footnote is a block of its own text, and a link to it finds its line', async () => {
+  const { outlineOf } = await import('../src/core/outline.ts');
+  const text = 'Rye proves slower[^rye].\n\n[^rye]: Keep it at 26°.\n[^2]: Second note.\n';
+  assert.deepEqual(outlineOf(text).map((b) => b.text), ['Rye proves slower[^rye].', 'Keep it at 26°.', 'Second note.']);
+  assert.equal(lineOfSub(text, '#[^rye]'), 2);
+  assert.equal(lineOfSub(text, '#[^2]'), 3);
+  assert.equal(lineOfSub(text, '#[^none]'), undefined);
+});

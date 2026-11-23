@@ -32,6 +32,7 @@ export const MAX_BLOCK = 2000;
 const RE_ITEM = /^([ \t]*)(?:[-*+]|(\d+)[.)])(?:[ \t]+(.*))?$/;
 const RE_RULE = /^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const RE_HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
+const RE_FOOTNOTE = /^\[\^[^\]\s]+\]:[ \t]*(.*)$/;
 const RE_FENCE = /^[ \t]*(?:[-*+][ \t]+)?(`{3,}|~{3,})/;
 
 interface Row {
@@ -82,6 +83,15 @@ function rows(text: string): Row[] {
     if (item) out.push({ indent, kind: 'item', text: item[3] ?? '', level: 0, ...(item[2] ? { num: +item[2] } : {}) });
     else if ((m = RE_HEADING.exec(raw))) out.push({ indent: 0, kind: 'heading', text: m[2], level: m[1].length });
     else out.push({ indent, kind: f ? 'code' : 'text', text: raw.slice(ws.length), level: 0 });
+  }
+  // Footnotes: Roam has none, so each "[^1]: text" is a block of its text, and a use of it is a block
+  // reference to that block (drawn by the renderer).
+  for (let k = 0; k < out.length; k++) {
+    const row = out[k];
+    if (row.kind === 'text' && row.indent <= 3 && row.text.startsWith('[^')) {
+      const m = RE_FOOTNOTE.exec(row.text);
+      if (m) out[k] = { indent: 0, kind: 'item', text: m[1], level: 0 }; // each its own block, as in Obsidian's list of footnotes
+    }
   }
   // Reference-style links: each use reads as the inline link it stands for, and the lines that
   // define them are hidden, as Obsidian's reading view hides them.
@@ -398,6 +408,13 @@ export function lineOfSub(text: string, sub: string): number | undefined {
   const part = sub.slice(sub.lastIndexOf('#') + 1).trim();
   if (!part) return undefined;
   const lines = text.split('\n');
+  if (part.startsWith('[^')) {
+    // a footnote: the line that gives its text, "[^1]: text"
+    const id = part.slice(2, -1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`^ {0,3}\\[\\^${id}\\]:`);
+    const i = lines.findIndex((l) => re.test(l));
+    return i < 0 ? undefined : i;
+  }
   if (part[0] === '^') {
     const id = part.slice(1);
     const re = new RegExp(`(?:^|[ \\t])\\^${id.replace(/[^A-Za-z0-9-]/g, '')}[ \\t]*\\r?$`);

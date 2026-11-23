@@ -132,3 +132,13 @@ test('a Markdown table is Roam\'s table', () => {
   // pipes without the line of dashes are text
   assert.deepEqual(body('| not | a table |\n| just | pipes |').length, 2);
 });
+
+test('footnotes are block references: [^1] to the footnote\'s block, ^[text] with its text', () => {
+  const root = new El('div');
+  blockBody(root as unknown as HTMLElement, 'Rye proves slower[^rye] and needs warmth^[about 26°].');
+  const refs = root.kids.filter((k): k is El => typeof k !== 'string' && k.className.includes('rm-block-ref'));
+  assert.equal(refs.length, 2);
+  assert.deepEqual([refs[0].dataset.rvTarget, refs[0].dataset.rvSub, refs[0].textContent], ['', '#[^rye]', '[^rye]']);
+  assert.equal(refs[1].textContent, 'about 26°');
+  assert.equal(root.textContent, 'Rye proves slower[^rye] and needs warmthabout 26°.');
+});

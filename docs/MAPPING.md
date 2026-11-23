@@ -48,7 +48,7 @@ Roam has none, leave it out rather than invent UI.
 | Table | Table | `{{table}}` | Roam's table | Column alignment is not kept; Roam's tables have none |
 | Code | Highlighted | Code block | Plain `pre` | No highlighting |
 | Mermaid, math | Drawn, typeset | `{{mermaid}}`, `$$` | Code; raw TeX | Needs Roam's own renderers |
-| Footnote | Superscript and a notes section | None | Raw `[^1]` | Minor |
+| Footnote | Superscript and a notes section | Block reference | `[^1]` is a block reference showing the footnote; the footnote is a block at the end; `^[text]` shows its text | None |
 | Backlinks pane | One raw line per match. No parent path | Linked References | Roam's layout: path above the block, children under it; Roam's search box and filter in the header | Roam's gear (group by page, nesting) and the filter's global pin |
 | Unlinked mentions | The name and aliases in plain text, with a Link button | Unlinked References | Not present; only notes with a similar name | Needs note text |
 | Opening a note | Tab; ctrl-click a new tab | Main window; shift-click the sidebar | Roam's main window, drawn as a page, with Back and Forward; shift-click a dialog over the page | Roam's sidebar takes no windows from an extension, so shift-click can't open one there |
@@ -85,7 +85,7 @@ Obsidian keeps them in the file name and in wikilinks.
 | `type`, `status` | Controlled words | Page references in an attribute | In a bundle, page references: a type's page lists its notes | None |
 | Markdown links | Resolved from the file's folder; `/` from the bundle root; case-sensitive | Page reference | In a bundle, the spec's order, then as in a vault; not case-sensitive. Reference-style links (`[text][ref]`) read as the inline links they stand for, their definitions hidden | Not case-sensitive |
 | `tags` | A list | Tags | The list form, or one tag as a string | None |
-| Body text | Hard-wrapped paragraphs, GFM tables, footnotes | Blocks | Wrapped lines joined; tables are Roam's table | Footnotes are raw |
+| Body text | Hard-wrapped paragraphs, GFM tables, footnotes | Blocks | Wrapped lines joined; tables are Roam's table; footnotes are block references to blocks of their text | None |
 | Bundle | A folder of OKF files; its root `index.md` has frontmatter | A vault | A folder whose `index.md` has `okf_version` is a bundle | A root `index.md` without `okf_version` is not seen |
 | Anchor `file.md#section` | A link to a section | Reference to the heading block | A click opens the note with the heading marked | None |
 
@@ -114,9 +114,10 @@ What the extension copies from Roam, measured in Linked References:
 
 ## What is left, in rough order
 
-1. The right-click menus of Linked References, and its gear menu.
-2. Unlinked mentions from vaults. This needs note text, so it belongs with full-text search.
-3. Footnotes, which are drawn raw.
+1. Unlinked mentions from vaults. This needs note text, so it belongs with full-text search.
+
+Left out on purpose (Matthew, 2026-11-23): the right-click menus of Linked References, which mostly
+change the graph.
 
 ## What cannot be mapped
 

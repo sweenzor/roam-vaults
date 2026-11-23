@@ -44,7 +44,7 @@ const VAULTS = {
     'Plants/Tomatoes.md': '---\naliases: [Tomato]\nsunlight: full sun\n---\n# Tomatoes\n\nCordon varieties need a cane or a string from the day they are planted out.\n\n- Pinch out the side shoots every week\n- Water at the base, never over the leaves\n- See [[Blight]] for what to watch for in August\n',
     'Journal/2026-05-14.md': '- Planted out the [[Tomatoes]] in bed 2, 45 cm apart\n- Sowed a second row of carrots\n',
     'Projects/Raised bed plan.md': '## Bed 2\n\n- [[Tomatoes]] along the back, basil in front\n- Leave room for a path on the north side\n',
-    'Pests/Blight.md': '# Blight\n\nLate blight spreads fast in warm, wet weather.\n\n- Showed up on the [[Tomatoes]] after a wet week last August\n- Take off the leaves it is on and keep them out of the compost\n- Grow under cover if it comes back ^cover\n',
+    'Pests/Blight.md': '# Blight\n\nLate blight spreads fast in warm, wet weather.[^wet]\n\n- Showed up on the [[Tomatoes]] after a wet week last August\n- Take off the leaves it is on and keep them out of the compost\n- Grow under cover if it comes back ^cover\n\n[^wet]: Two warm, wet days in a row are enough.\n',
     'Seeds/Spring order.md': '- San Marzano and Sungold #tomatoes\n- Nantes carrots\n',
     'Journal/2026-06-02.md': '- Greenhouse\n    - Tied the [[Tomatoes]] in to the top wire\n        - Took off the leaves below the first truss\n        - Fed with comfrey tea\n- Paths\n    - Laid bark between beds 1 and 2\n',
     'Soil/Fertilizer schedule.md': '# Fertilizer schedule\n\n- Comfrey tea every two weeks from June\n- Seaweed feed when the fruit sets ^seaweed\n',

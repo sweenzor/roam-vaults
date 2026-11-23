@@ -52,6 +52,8 @@
 - A property's name is a page, as an attribute's name is in Roam: the page **author** lists every note
   with an `author` property, and a `Name::` written in a note (as Roam's Markdown export writes one)
   counts the same. Tags, aliases and `cssclasses` are left out: they are Roam's tags and aliases.
+- Footnotes are Roam block references: `[^1]` shows the footnote's text and opens the note at it, the
+  footnote is a block of its own, and an inline footnote `^[text]` shows its text.
 - Reference-style Markdown links (`[text][ref]`, `[ref]: target.md`) are links: they count on the
   page they name and are drawn as the link they stand for, with the lines that define them hidden.
 - The section's header has Linked References' search box and filter. A search shows the references
