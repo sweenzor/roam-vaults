@@ -110,6 +110,13 @@ async function pageBox(to = '.roam-article .rv-panel') {
   const y = Math.max(0, title.y - 24);
   return { x: article.x, y, width: article.width, height: Math.min(HEIGHT, end.y + end.height + 24) - y };
 }
+/** A note open in the main window, from just above its title to its end. */
+async function noteBox() {
+  const note = await boxOf('.rv-note-page'), title = await boxOf('.rv-note-page .rm-title-display');
+  if (!note || !title) throw new Error('no note open in the main window');
+  const y = Math.max(0, title.y - 24);
+  return { x: note.x, y, width: note.width, height: Math.min(HEIGHT, note.y + note.height + 24) - y };
+}
 async function snap(name, clip) {
   if (!roam.signedIn) return; // never photograph the sign-in screen
   await evalIn(() => document.querySelectorAll('.bp3-toast .bp3-button').forEach((b) => b.click()));
@@ -175,7 +182,7 @@ async function main() {
   await roam.page.locator('.roam-article .rv-panel .rm-block-main', { hasText: 'Showed up on the' }).locator('.rm-bullet').click();
   await waitFor('the note in the main window', () => evalIn(() => !!document.querySelector('.rv-note-page .rv-hl')), 10000);
   await sleep(500);
-  await snap('note-viewer', await pageBox());
+  await snap('note-viewer', await noteBox());
   await evalIn(() => history.back());
   await waitFor('the page again', async () => (await panelText()).includes('Passata'), 20000);
   await sleep(300);
@@ -211,11 +218,7 @@ async function main() {
   await roam.page.locator('.roam-article .rv-panel .rv-group-title a').first().click();
   await waitFor('the OKF note in the main window', () => evalIn(() => document.querySelector('.rv-note-page .rm-title-display')?.textContent.trim() === 'Heritage Seed Company'), 10000);
   await sleep(500);
-  {
-    const note = await boxOf('.rv-note-page'), title = await boxOf('.rv-note-page .rm-title-display');
-    const y = Math.max(0, title.y - 24);
-    await snap('okf-note', { x: note.x, y, width: note.width, height: Math.min(HEIGHT, note.y + note.height + 24) - y });
-  }
+  await snap('okf-note', await noteBox());
   await evalIn(() => history.back());
   await sleep(1000);
 
