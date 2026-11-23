@@ -112,10 +112,23 @@ async function pageBox(to = '.roam-article .rv-panel') {
 }
 /** A note open in the main window, from just above its title to its end. */
 async function noteBox() {
-  const note = await boxOf('.rv-note-page'), title = await boxOf('.rv-note-page .rm-title-display');
-  if (!note || !title) throw new Error('no note open in the main window');
-  const y = Math.max(0, title.y - 24);
-  return { x: note.x, y, width: note.width, height: Math.min(HEIGHT, note.y + note.height + 24) - y };
+  // the page fills the window: measure what is written on it instead
+  const r = await evalIn(() => {
+    const els = [...document.querySelectorAll('.rv-note-page .rm-title-display, .rv-note-page .rm-block-main, .rv-note-page button')];
+    if (!els.length) return null;
+    const rs = els.map((e) => e.getBoundingClientRect()).filter((b) => b.height > 0);
+    return { left: Math.min(...rs.map((b) => b.left)), top: Math.min(...rs.map((b) => b.top)), right: Math.max(...rs.map((b) => b.right)), bottom: Math.max(...rs.map((b) => b.bottom)) };
+  });
+  if (!r) throw new Error('no note open in the main window');
+  const x = Math.max(0, r.left - 40), y = Math.max(0, r.top - 24);
+  return { x, y, width: Math.min(WIDTH, r.right + 40) - x, height: Math.min(HEIGHT, r.bottom + 32) - y };
+}
+/** The External Vault References section, from its header to its end. */
+async function sectionBox() {
+  const panel = await boxOf('.roam-article .rv-panel'), head = await boxOf('.roam-article .rv-panel .rv-sec-head');
+  if (!panel || !head) throw new Error('no section on the page');
+  const x = Math.max(0, panel.x - 16), y = Math.max(0, head.y - 12);
+  return { x, y, width: Math.min(WIDTH, panel.x + panel.width + 16) - x, height: Math.min(HEIGHT, panel.y + panel.height + 16) - y };
 }
 async function snap(name, clip) {
   if (!roam.signedIn) return; // never photograph the sign-in screen
@@ -230,9 +243,12 @@ async function main() {
   await waitFor('the search to narrow the section', () => evalIn(() => / of \d+ external vault references$/.test(document.querySelector('.roam-article .rv-panel .rv-sec-head strong')?.textContent ?? '')), 10000);
   await roam.page.mouse.move(5, 5);
   await sleep(800);
-  await snap('search', await boxOf('.roam-article .rv-panel', 16));
+  await snap('search', await sectionBox());
   await roam.page.locator('.roam-article .rv-panel .rm-mentions-search .bp3-input-action').click();
   await sleep(800);
+  // the header near the top of the window, so the filter opens below it, over the section
+  await evalIn(() => document.querySelector('.roam-article .rv-panel .rv-sec-head')?.scrollIntoView({ block: 'start' }));
+  await sleep(500);
   await roam.page.locator('.roam-article .rv-panel .bp3-icon-filter').first().click();
   const pop = '.bp3-portal[data-roam-vaults] .bp3-popover';
   await waitFor('the filter', () => evalIn((pop) => !!document.querySelector(`${pop} .rm-filter-button`), pop), 10000);
@@ -247,7 +263,7 @@ async function main() {
   await waitFor('the filter to narrow the section', () => evalIn(() => / of \d+ external vault references$/.test(document.querySelector('.roam-article .rv-panel .rv-sec-head strong')?.textContent ?? '')), 10000);
   await roam.page.mouse.move(5, 5);
   await sleep(800);
-  await snap('filtered', await boxOf('.roam-article .rv-panel', 16));
+  await snap('filtered', await sectionBox());
   // take it off again
   await roam.page.locator('.roam-article .rv-panel .bp3-icon-filter').first().click();
   await waitFor('the filter', () => evalIn((pop) => !!document.querySelector(`${pop} .rm-choose-filter__includes .rm-filter-button`), pop), 10000);
