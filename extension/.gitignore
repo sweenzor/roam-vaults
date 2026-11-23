@@ -3,3 +3,5 @@ node_modules/
 /extension.js
 # real Roam run output (test/real-roam/run.mjs)
 /real-roam-out/
+# help graph run output (test/help-graph.mjs)
+/help-graph-out/
