@@ -165,8 +165,15 @@ export async function signIn(email, password) {
     .catch(() => { throw new Error('sign-in failed: check the ROAM_EMAIL and ROAM_PASSWORD secrets'); });
   log('signed in');
 }
+/** Opens `graph`: a hosted graph by name, or a local graph as `offline/<name>` (made on first open). */
 export async function openGraph(graph) {
-  if (!roam.page.url().includes(`#/app/${graph}`)) await roam.page.goto(`${APP_URL}/${graph}`);
+  const hash = graph.startsWith('offline/') ? `#/${graph}` : `#/app/${graph}`;
+  if (!roam.page.url().includes(hash)) {
+    await roam.page.goto(APP_URL.replace(/#\/app$/, hash));
+    // a change of hash alone may not leave the graph list
+    await sleep(1500);
+    if (graph.startsWith('offline/') && !(await evalIn(() => !!window.roamAlphaAPI?.data?.q).catch(() => false))) await roam.page.reload().catch(() => {});
+  }
   await waitFor(`graph ${graph} to load`, () => evalIn(() => {
     if (/error loading your graph/i.test(document.body.innerText)) throw new Error('graph error');
     return !!(window.roamAlphaAPI?.data?.q && document.querySelector('.roam-main .roam-article, .roam-main .roam-log-container, .rm-title-display'));
