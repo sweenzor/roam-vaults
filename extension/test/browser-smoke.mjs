@@ -224,6 +224,25 @@ ok('counts of zero are left out', await p.waitForFunction(() => document.querySe
 await p.evaluate(() => window.__settings.settings.find((s) => s.id === 'reference-counts').action.onChange({ target: { checked: false } }));
 ok('turning the switch off removes the counts line', await p.waitForFunction(() => !document.querySelector('.rv-counts'), null, { timeout: 3000 }).then(() => true, () => false));
 
+// a folder named like the page: the notes in it are listed like any note, and open in the viewer
+await p.evaluate(() => { window.roamAlphaAPI.pull = () => ({ ':node/title': 'Q4' }); window.dispatchEvent(new HashChangeEvent('hashchange')); });
+const folderShown = await p.waitForFunction(() => document.querySelector('.rv-panel')?.dataset.title === 'Q4' && document.querySelector('.rv-panel').textContent.includes('Q4/'), null, { timeout: 3000 }).then(() => true, () => false);
+ok('a note in a folder named like the page is listed by its path, folded', folderShown
+  && (await p.locator('.rv-note').first().textContent()) === 'Résumés/2026/Q4/Café plan'
+  && (await p.locator('.rv-sec-head strong').textContent()) === '1 External Vault References'
+  && await p.locator('.rv-group').first().locator('.rv-content').evaluate((e) => e.hidden));
+ok('the title reads from the folder on, with the path above it grey', await p.locator('.rv-note').first().evaluate((e) =>
+  e.querySelector('.rv-vault')?.textContent === 'Résumés/2026/' && getComputedStyle(e.querySelector('.rv-vault')).color !== getComputedStyle(e).color));
+ok('nothing new is drawn for the folder itself', await p.evaluate(() => !document.querySelector('.rv-panel .rv-file, .rv-panel .rv-count')));
+ok('no hover tooltips in the section', await p.evaluate(() => !document.querySelector('.rv-panel [title]')));
+await p.locator('.rv-group-caret').first().click();
+ok('its caret shows the note in place', await p.waitForFunction(() => document.querySelector('.rv-group .rv-preview')?.textContent.trim().length > 0, null, { timeout: 3000 }).then(() => true, () => false));
+await p.locator('.rv-note').first().click();
+await p.waitForSelector('.rv-viewer');
+ok('its title opens the note in the viewer', (await p.locator('.rv-viewer h3').textContent()) === 'Café plan');
+if (process.argv[2]) await p.screenshot({ path: process.argv[2].replace(/\.png$/, '-folder.png') });
+await p.keyboard.press('Escape');
+
 await p.evaluate(() => window.__ext.onunload());
 ok('unload removes everything', (await p.locator('[data-roam-vaults]').count()) === 0);
 

@@ -62,6 +62,14 @@
   whose block or path has the words, written as they are in the note with the words in yellow, as Roam
   shows them. The filter lists the pages the references link to; click one to keep only the references
   that link to it, shift-click to hide them. The count reads "1 of 3 external vault references" meanwhile.
+- Notes in a folder named like the page. A vault kept by folder (one folder per project or area, named
+  like its page in Roam) showed nothing on those pages unless a note linked back. Now every note inside a
+  folder with the page's name, in any letter case and anywhere in the vault, is listed under External
+  Vault References like any other note, after the notes that link to the page. The folder's own notes come
+  first, then the notes in its subfolders. Its title reads from that folder on, with only the path above
+  the folder in grey. For a page `A/B`, the folder's path must end in `A/B`. Thanks to Daniel Rahal
+  (@danhrahal) for the idea and the matching.
+- Note titles no longer show a hover tooltip.
 
 ## 0.2.0 (2026-11-22)
 

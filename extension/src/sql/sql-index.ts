@@ -2,9 +2,9 @@
 // (VaultIndex.candidates and its Obsidian tie-break rules are inherited unchanged). The database is
 // kept across starts, so it is also the parse cache: a note whose size and time match is not read
 // again. Runs in the indexer worker.
-import { VaultIndex, NONE, baseOf, fileKeyPath, aliasKeys, noteTagKeys, type Stamp } from '../core/vault-index.ts';
+import { VaultIndex, NONE, baseOf, fileKeyPath, aliasKeys, noteTagKeys, dirCounts, type Stamp } from '../core/vault-index.ts';
 import type { Note } from '../core/types.ts';
-import { LOOKUP_INDEXES } from './schema.ts';
+import { LOOKUP_INDEXES, DIRS_ADD } from './schema.ts';
 import { FuzzyTitles } from './fuzzy.ts';
 
 const ALIAS = 0, TAG = 1, MATCHER = 2;
@@ -188,6 +188,17 @@ export class SqlIndex extends VaultIndex {
     return paths.map((p) => this.note(p)!);
   }
 
+  override notePathsIn(folder: string): string[] {
+    return this.col('SELECT f.path FROM files f JOIN notes n ON n.id = f.id WHERE f.path >= ? AND f.path < ?', [folder + '/', folder + '0']);
+  }
+  override dirsNamed(name: string): readonly string[] { return this.col('SELECT path FROM dirs WHERE name = ?', [name]); }
+  /** Notes came (by = 1) or went (by = -1): keep the count of notes under each folder above them. */
+  private countDirs(paths: string[], by: number) {
+    const rows = JSON.stringify(dirCounts(paths, by));
+    this.run(DIRS_ADD, [rows]);
+    if (by < 0) this.run('DELETE FROM dirs WHERE n <= 0 AND path IN (SELECT value ->> 0 FROM json_each(?))', [rows]);
+  }
+
   // ---------- the matcher's keys ----------
   override addKey(key: string, path: string) {
     const id = this.idOf(path);
@@ -238,6 +249,7 @@ export class SqlIndex extends VaultIndex {
       this.named.clear();
       if (this.count >= 0) this.count += added.length;
       for (const [p, id] of this.rows('INSERT INTO files(path, name) SELECT value ->> 0, value ->> 1 FROM json_each(?) RETURNING path, id', [JSON.stringify(added)])) ids.set(p, id);
+      this.countDirs(added.map((a) => a[0]), 1);
     }
     const rows: unknown[] = [], names: unknown[] = [], keys: unknown[] = [];
     for (const n of notes) {
@@ -285,6 +297,7 @@ export class SqlIndex extends VaultIndex {
     for (const fn of this.listeners) fn(from, 'remove');
     this.write();
     this.run('UPDATE files SET path = ?, name = ? WHERE id = ?', [to, baseOf(fileKeyPath(to)), id]);
+    this.countDirs([from], -1); this.countDirs([to], 1);
     this.named.clear();
     // A link's name key can depend on the note's folder (./ and ../ links).
     this.run('DELETE FROM link_names WHERE note = ?', [id]);
@@ -306,7 +319,7 @@ export class SqlIndex extends VaultIndex {
     const isNote = this.one('SELECT 1 FROM notes WHERE id = ?', [id]) !== undefined;
     this.run('DELETE FROM link_names WHERE note = ?', [id]);
     this.run('DELETE FROM note_keys WHERE note = ?', [id]);
-    if (isNote) { this.run('DELETE FROM notes WHERE id = ?', [id]); this.fuzzyTitles.remove(id); if (this.count > 0) this.count--; }
+    if (isNote) { this.run('DELETE FROM notes WHERE id = ?', [id]); this.fuzzyTitles.remove(id); if (this.count > 0) this.count--; this.countDirs([path], -1); }
     this.run('DELETE FROM files WHERE id = ?', [id]);
     this.named.clear();
   }

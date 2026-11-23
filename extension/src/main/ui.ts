@@ -146,7 +146,7 @@ export function renderPanel(el: HTMLElement, vaults: PanelVault[]): number {
     const s = v.state;
     if (s.kind !== 'ready' || !s.result) continue;
     ready.push({ v, r: s.result });
-    n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged, ...(s.result.fuzzy ?? [])].map((x) => x.path)).size;
+    n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged, ...(s.result.inFolders ?? []), ...(s.result.fuzzy ?? [])].map((x) => x.path)).size;
   }
   if (!n) { el.replaceChildren(); return 0; }
   const collapsed = isCollapsed();
@@ -165,7 +165,7 @@ export function renderPanel(el: HTMLElement, vaults: PanelVault[]): number {
     const filtering = f.inc.size + f.rem.size > 0;
     if (filtering) shown = shown.map(({ v, r }) => ({ v, r: filtered(r, f) }));
     const narrowed = !!q || filtering;
-    const m = narrowed ? shown.reduce((k, { r }) => k + new Set([...r.counterparts, ...r.backlinks, ...r.tagged, ...(r.fuzzy ?? [])].map((x) => x.path)).size, 0) : n;
+    const m = narrowed ? shown.reduce((k, { r }) => k + new Set([...r.counterparts, ...r.backlinks, ...r.tagged, ...(r.inFolders ?? []), ...(r.fuzzy ?? [])].map((x) => x.path)).size, 0) : n;
     label.textContent = narrowed ? `${m} of ${n} external vault references` : `${n} External Vault References`;
     // Roam's filter icon turns red while a filter is on
     filter.querySelector<HTMLElement>('.bp3-icon-filter')!.style.color = filtering ? 'rgb(168, 42, 42)' : '';
@@ -225,7 +225,7 @@ function filtered(r: PageResult, f: Filters): PageResult {
   const keep = (l: BacklinkLine, note: string) => { const refs = refsOfLine(l, note); return [...f.inc.keys()].every((k) => refs.has(k)) && ![...f.rem.keys()].some((k) => refs.has(k)); };
   const backlinks = r.backlinks.filter((b) => !b.unread).map((b) => ({ ...b, lines: b.lines.filter((l) => keep(l, b.title)) })).filter((b) => b.lines.length);
   const none = f.inc.size > 0;
-  return { ...r, backlinks, counterparts: none ? [] : r.counterparts, tagged: none ? [] : r.tagged, fuzzy: none ? [] : r.fuzzy };
+  return { ...r, backlinks, counterparts: none ? [] : r.counterparts, tagged: none ? [] : r.tagged, inFolders: none ? [] : r.inFolders, fuzzy: none ? [] : r.fuzzy };
 }
 
 /** Roam's filter button and its popover: the pages the shown references link to, by how many link
@@ -305,7 +305,7 @@ function searched(r: PageResult, q: string): PageResult {
     const lines = b.lines.filter((l) => has(l.text) || (l.up ?? []).some((u) => has(u.text)));
     if (lines.length) backlinks.push({ ...b, lines });
   }
-  return { ...r, counterparts: r.counterparts.filter(named), backlinks: backlinks.filter((b) => !b.unread), tagged: r.tagged.filter(named), fuzzy: (r.fuzzy ?? []).filter(named) };
+  return { ...r, counterparts: r.counterparts.filter(named), backlinks: backlinks.filter((b) => !b.unread), tagged: r.tagged.filter(named), inFolders: (r.inFolders ?? []).filter(named), fuzzy: (r.fuzzy ?? []).filter(named) };
 }
 
 /** Roam's search box from the Linked References header: an icon that opens it, the input, and a
@@ -379,11 +379,11 @@ function sectionHead(label: HTMLElement, open = true, tools: HTMLElement[] = [])
 }
 
 /** Notes from every ready vault: the notes that are this page first, then notes linking here,
- *  then notes only tagged here. With more than one vault, each title starts with its vault name. */
+ *  then notes in a folder named like the page, then notes only tagged here. With more than one vault, each title starts with its vault name. */
 function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[], showVault: boolean, find = '', filtering = false): HTMLElement {
   const out = h('div', { class: 'rv-groups rm-mentions refs-by-page-view' }); // Roam's own list classes: its style sheet lays the groups out
   /** One note: caret + (vault/)path as a namespaced title (+ tag); content shows when open. The open-in-editor button lives in the viewer. */
-  const group = (v: PanelVault, key: string, path: string, title: string, defOpen: boolean, tag: string | undefined, content: () => HTMLElement, cls = '', marks: number[] = []) => {
+  const group = (v: PanelVault, key: string, path: string, title: string, defOpen: boolean, tag: string | undefined, content: () => HTMLElement, cls = '', marks: number[] = [], from?: number) => {
     const k = `${v.id}\n${key}\n${path}`;
     const box = h('div', { class: 'rv-content' });
     const c = caret(false, 'rm-caret-showing rv-group-caret dont-focus-block');
@@ -400,14 +400,15 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
     });
     set(groupOpen.get(k) ?? defOpen);
     // The folders a note is in, in the grey a vault's name has, so the title reads as the note's name.
-    const name = path.lastIndexOf('/') + 1;
+    // A note listed for a folder named like the page reads from that folder on: only the path above it is grey.
+    const last = path.lastIndexOf('/') + 1, name = from ?? last;
     return h('div', { class: 'rm-ref-page-view rv-group' + cls },
       h('div', { class: 'flex-h-box rm-title-arrow-wrapper rv-group-head' }, c,
         h('div', { class: 'rm-ref-page-view-title rv-group-title' },
           h('a', { onclick: (e: MouseEvent) => v.act.view(path, undefined, e.shiftKey) },
             h('span', { class: 'rm-page__title rv-note', style: 'cursor: pointer; text-decoration: none;' },
               showVault || name ? h('span', { class: 'rv-vault' }, (showVault ? `${v.name}/` : '') + path.slice(0, name)) : null,
-              ...marked(title, 0, marks)))),
+              ...marked(path.slice(name, last) + title, last - name, marks)))),
         tag ? h('span', { class: 'rv-tagref' }, `#${tag}`) : null),
       box);
   };
@@ -441,6 +442,11 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
       if (b.unread) v.act.lines([b]).then(draw, () => {});
       return box;
     }));
+  }
+  // Notes inside a folder named like the page: listed like any note, by their path in the vault.
+  for (const { v, r } of list) for (const f of r.inFolders ?? []) {
+    const tag = tagOnce(v, f.path);
+    rows.push(() => group(v, 'folder', f.path, f.title, false, tag, preview(v, f.path), '', [], f.from));
   }
   for (const { v, r } of list) for (const t of r.tagged) {
     const tag = tagOnce(v, t.path);

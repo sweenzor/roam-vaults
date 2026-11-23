@@ -5,8 +5,9 @@
 // let the next scan read the vault again.
 
 import { fuzzyMigration } from './fuzzy.ts';
+import { dirCounts } from '../core/vault-index.ts';
 
-type Db = { exec(sql: string): unknown };
+type Db = { exec(sql: string | { sql: string; bind?: unknown[] }): unknown; selectValues?(sql: string): unknown[] };
 
 export const MIGRATIONS: ((db: Db) => void)[] = [
   (db) => db.exec(`
@@ -38,14 +39,36 @@ export const MIGRATIONS: ((db: Db) => void)[] = [
   },
   // A note's title property is an alias, a log's days are links, and tags are read as Obsidian
   // reads them: what was read before is read again.
-  (db) => db.exec('DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;'),  // 4: dates and paths to notes in properties are links now: read again.
+  (db) => db.exec('DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;'),
+  // 4: dates and paths to notes in properties are links now: read again.
   (db) => db.exec('DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;'),
   // 5: a note's OKF title and whether it is a bundle's root (JSON, as in Note; NULL for neither): read again.
   (db) => db.exec(`ALTER TABLE notes ADD COLUMN okf TEXT;
     DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;`),
   // 6: reference-style Markdown links are links now: read again.
   (db) => db.exec('DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;'),
+  // Every folder that holds a note, at any depth, with its lowercase name and how many notes are
+  // under it: the folders a page title names are found by name. Filled from the notes already there.
+  // A later step that empties notes has to empty dirs too.
+  // Builds of this from before it was step 7 made the table as step 3 or 5 and went without the
+  // step main had there: the table is made again, and a notes table without okf gets it and is read again.
+  (db) => {
+    if (!db.selectValues!("SELECT name FROM pragma_table_info('notes') WHERE name = 'okf'").length)
+      db.exec(`ALTER TABLE notes ADD COLUMN okf TEXT;
+        DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;`);
+    db.exec(`
+      DROP TABLE IF EXISTS dirs;
+      CREATE TABLE dirs(path TEXT PRIMARY KEY, name TEXT NOT NULL, n INTEGER NOT NULL) WITHOUT ROWID;
+      CREATE INDEX dirs_name ON dirs(name);
+    `);
+    const notes = db.selectValues!('SELECT f.path FROM files f JOIN notes n ON n.id = f.id') as string[];
+    if (notes.length) db.exec({ sql: DIRS_ADD, bind: [JSON.stringify(dirCounts(notes))] });
+  },
 ];
+
+/** Add to (or, with negative counts, take from) the notes counted under some folders: rows from dirCounts. */
+export const DIRS_ADD = `INSERT INTO dirs(path, name, n) SELECT value ->> 0, value ->> 1, value ->> 2 FROM json_each(?) WHERE true
+  ON CONFLICT(path) DO UPDATE SET n = n + excluded.n`;
 
 /**
  * The indexes only lookups need, as the steps above made them. A scan into an empty database drops

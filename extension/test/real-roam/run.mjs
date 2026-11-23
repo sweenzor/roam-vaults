@@ -228,6 +228,35 @@ async function main() {
     return false;
   }));
 
+  // a folder named like the page: its notes are listed like any note, added and removed while Roam is open
+  const folder = path.join(small, 'Projects', TEST_PAGE);
+  const before = Number((await panelText()).match(/(\d+) External Vault References/)?.[1] ?? 0);
+  fs.mkdirSync(path.join(folder, 'Files'), { recursive: true });
+  fs.writeFileSync(path.join(folder, 'Plan.md'), 'The plan kept in the folder, with no link back.\n');
+  fs.writeFileSync(path.join(folder, 'Files', 'Budget.md'), 'A note one folder further in.\n');
+  fs.writeFileSync(path.join(folder, 'Files', 'spec.pdf'), '%PDF-1.4\n');
+  const folderRows = () => evalIn((dir) => [...document.querySelectorAll('.roam-article .rv-panel .rv-group')]
+    .map((g) => ({ title: g.querySelector('.rv-note')?.textContent.trim() ?? '', folded: g.querySelector('.rv-content')?.hidden, grey: [...g.querySelectorAll('.rv-note .rv-vault')].map((x) => x.textContent).join('') }))
+    .filter((r) => r.title.includes(dir)), `Projects/${TEST_PAGE}/`);
+  const listed = await waitFor('the folder\'s notes to be listed', async () => { const r = await folderRows(); return r.length === 2 && r; }, 20000).catch(() => null);
+  check('Notes in a folder named like the page are listed, without a Rescan, the nearest first',
+    JSON.stringify(listed?.map((r) => r.title.slice(r.title.indexOf('Projects/')))) === JSON.stringify([`Projects/${TEST_PAGE}/Plan`, `Projects/${TEST_PAGE}/Files/Budget`]), JSON.stringify(listed ?? await folderRows()));
+  check('They are folded, and the other file in the folder is not listed', !!listed?.every((r) => r.folded === true) && !(await panelText()).includes('spec.pdf'));
+  check('The path above the folder is grey', !!listed?.every((r) => r.grey.endsWith('Projects/')), JSON.stringify(listed?.map((r) => r.grey)));
+  const tHead = await panelText();
+  check('Each counts as an External Vault Reference', tHead.includes(`${before + 2} External Vault References`), tHead.split('\n')[0]);
+  check('Nothing is drawn for the folder itself', await evalIn(() => !document.querySelector('.rv-panel .rv-file, .rv-panel .rv-count, .rv-panel .rv-files')));
+  await shot('page-folder-notes');
+  await roam.page.locator('.roam-article .rv-panel .rv-note', { hasText: `Projects/${TEST_PAGE}/Plan` }).first().click({ modifiers: ['Shift'] }).catch(() => {});
+  const viewed = await waitFor('the note viewer', () => evalIn(() => { const v = document.querySelector('.rv-viewer'); return v && v.innerText.includes('The plan kept in the folder') && v.querySelector('h3')?.textContent.trim(); }), 8000).catch(() => null);
+  check('A note in the folder opens over the page with a shift-click', viewed === 'Plan', String(viewed));
+  await shot('page-folder-note-viewer');
+  await roam.page.keyboard.press('Escape');
+  await sleep(500);
+  fs.rmSync(path.join(small, 'Projects'), { recursive: true });
+  const gone = await waitFor('the folder\'s notes to go', async () => !(await folderRows()).length, 20000).then(() => true, () => false);
+  check('Removing the folder on disk removes its notes', gone, JSON.stringify(await folderRows()));
+
   // plain vault: a folder of Markdown files and nothing else still works
   await addVault(plain);
   const plainScanned = await waitFor(`${PLAIN} to finish scanning`, async () => /^3 notes$/.test(await statusOf(PLAIN)), 30000).then(() => true, () => false);

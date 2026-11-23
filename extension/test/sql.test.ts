@@ -74,6 +74,7 @@ async function shows(e: VaultEngine, titles: string[]) {
       c: r.counterparts.map((c) => [c.path, c.how]),
       b: r.backlinks.map((b) => [b.path, b.lines.map((l) => [l.line, l.text, l.embed, l.unresolved])]),
       t: r.tagged.map((x) => [x.path, x.tag]),
+      f: r.inFolders.map((x) => x.path),
     };
   }
   return out;
@@ -94,12 +95,14 @@ async function same(mem: VaultEngine, sql: VaultEngine, titles: string[], files?
   }
 }
 const DAYS = ['January 15th, 2026', 'March 12th, 2026', 'September 18th, 2026', 'June 1st, 2026'];
+/** Pages named like the folders of gen() and of the tests' moves. */
+const FOLDERS = ['A', 'a', 'B', 'A/B', 'Daily', 'People', 'Deep', 'Est', 'Er/Est', 'Deep/Er', 'A2', 'Z', 'Z/A2', 'Nowhere'];
 
 test('a full scan answers every query as the in-memory index does', async () => {
   const { files } = gen(600);
   const fs = memFS(files);
   const { mem, sql } = await both(fs);
-  await same(mem, sql, titlesOf(files, ['delta/alpha', 'project/plan', 'A/B/alpha beta', ...DAYS]));
+  await same(mem, sql, titlesOf(files, ['delta/alpha', 'project/plan', 'A/B/alpha beta', ...DAYS, ...FOLDERS]));
   for (const [t, f] of [['./alpha beta', 'A/B/x.md'], ['../idea plan', 'A/B/x.md'], ['ALPHA BETA', ''], ['A/pic.png', '']]) {
     assert.equal(sql.resolve(t, f), mem.resolve(t, f));
   }
@@ -109,7 +112,7 @@ test('edits, new and deleted notes, and folder moves keep the two the same', asy
   const { files } = gen(300, 11);
   const fs = memFS(files);
   const { mem, sql } = await both(fs, ['YYYY-MM-DD']);
-  const titles = titlesOf(files, ['moved idea', ...DAYS]);
+  const titles = titlesOf(files, ['moved idea', ...DAYS, ...FOLDERS]);
   const paths = Object.keys(files);
   // edit a few, add one, delete one
   fs.write(paths[3], '[[moved idea]] and [[' + paths[5].replace(/\.md$/, '') + ']]\n#new/tag');
@@ -249,6 +252,44 @@ test('a scan handed over in batches fills the database like one in memory, and d
   assert.ok(!sql.idx.hasFile(unreadable));
   const fresh = new VaultEngine(fs); await fresh.build();
   await same(fresh, sql, titles);
+});
+
+test('the folders table is filled from the notes of a database made before it', async () => {
+  const { files } = gen(200, 5);
+  const { db } = await openDb('test-' + Math.random());
+  const e = new VaultEngine(memFS(files), undefined, new SqlIndex(db));
+  await e.build();
+  const dirs = () => JSON.stringify(db.selectArrays('SELECT path, name, n FROM dirs ORDER BY path'));
+  const before = dirs();
+  assert.ok(before.includes('["Deep/Er/Est","est",'), before);
+  const { MIGRATIONS, migrate } = await import('../src/sql/schema.ts');
+  db.exec(`DROP TABLE dirs; PRAGMA user_version = ${MIGRATIONS.length - 1}`);
+  migrate(db);
+  assert.equal(dirs(), before);
+});
+
+test('a database from a build where the folders table was step 3 or 5 comes out whole', async () => {
+  const { MIGRATIONS, migrate } = await import('../src/sql/schema.ts');
+  for (const step of [3, 5]) {
+    const { files } = gen(200, 5);
+    const { db } = await openDb('test-' + Math.random());
+    const fs = memFS(files);
+    const e = new VaultEngine(fs, undefined, new SqlIndex(db));
+    await e.build();
+    const dirs = () => JSON.stringify(db.selectArrays('SELECT path, name, n FROM dirs ORDER BY path'));
+    const before = dirs();
+    // Those builds had the table and stopped at that step, without the column main added as step 5:
+    // the steps after it empty the notes, add the column and make the table again.
+    e.matcher.detach();
+    db.exec(`ALTER TABLE notes DROP COLUMN okf; PRAGMA user_version = ${step}`);
+    migrate(db);
+    assert.equal(Number(db.selectValue('PRAGMA user_version')), MIGRATIONS.length);
+    assert.equal(db.selectValues("SELECT name FROM pragma_table_info('notes') WHERE name = 'okf'").length, 1);
+    assert.equal(dirs(), '[]', 'no folders are left over from notes that are gone');
+    const again = new VaultEngine(fs, undefined, new SqlIndex(db));
+    await again.build();
+    assert.equal(dirs(), before);
+  }
 });
 
 test('OKF bundles: found from index.md, kept across starts, followed by links and names', async () => {
