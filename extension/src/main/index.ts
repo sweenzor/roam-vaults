@@ -5,7 +5,7 @@ import { deleteNotes } from '../cache-db.ts';
 import { pickVaultFolder, ensurePermission } from './picker.ts';
 import { setScanMark, closeScanMark, unfinishedScans } from './scan-mark.ts';
 import { createSettingsPanel, scanProgress, COUNTS_SETTING, type SettingsVault } from './settings.ts';
-import { ATTR, installStyles, renderPanel, renderCounts, drawnRows, h, type Count, notify, removeToast, openViewer, closeViewer, type SectionState, type SectionActions, type Where, type PanelVault, type ViewerActions } from './ui.ts';
+import { ATTR, installStyles, renderPanel, renderCounts, drawnRows, h, type Count, notify, removeToast, openViewer, closeViewer, drawNote, type SectionState, type SectionActions, type Where, type PanelVault, type ViewerActions } from './ui.ts';
 import type { PageResult, Backlink } from '../engine.ts';
 import { followBrackets } from './brackets.ts';
 import { putLine, type LineRead } from '../core/outline.ts';
@@ -43,6 +43,7 @@ class Vault implements PanelVault {
   /** Another Roam window or tab has this vault open, and this one shows what that one's indexer
    *  has (see share.ts). The scan mark is that window's to keep. */
   follows = false;
+  viewer!: ViewerActions;
 
   constructor(id: string, handle: FileSystemDirectoryHandle) {
     this.id = id; this.handle = handle; this.name = handle.name;
@@ -67,11 +68,12 @@ class Vault implements PanelVault {
       openLabel: () => openLabel(openWith()),
       go: openInRoam,
     };
+    this.viewer = viewer;
     this.act = {
       ...viewer,
       reconnect: () => this.connect(true),
       remove: () => removeVault(this),
-      view: (path, line) => openViewer(path, line, viewer),
+      view: (path, line, side) => { if (side || !showNote(this, path, line)) openViewer(path, line, viewer); },
       lines: (notes) => this.lines(notes),
     };
   }
@@ -362,6 +364,57 @@ function syncAllCounts() {
 /** Open the page with this title in Roam: in the main window, or in the right sidebar as its
  *  outline, its linked references or its graph. False when the graph has no such page (a click must
  *  not make one). */
+// ---------- a note in Roam's main window ----------
+const NOTE = 'roam-vaults-note';
+interface NoteArgs { vault: string; path: string; line: number | null; n: number }
+let shown = 0;
+/** Roam draws this in its main window in place of a page (ui.mainWindow.openComponent). */
+function NoteView(p: NoteArgs) {
+  return (window as any).React.createElement('div', { ref: (el: HTMLElement | null) => {
+    const key = `${p.vault}\n${p.path}\n${p.line}\n${p.n}`;
+    if (!el || el.dataset.rvKey === key) return;
+    el.dataset.rvKey = key;
+    const v = vaults.find((x) => x.id === p.vault);
+    if (v) drawNote(el, p.path, p.line ?? undefined, v.viewer, v.act.view);
+  } });
+}
+/** Open a note in the main window. It gets a place in the window's history, so Back leaves it and
+ *  Forward comes back to it, as with a page. False where Roam has no such window (then the dialog). */
+function showNote(v: Vault, path: string, line?: number): boolean {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  if (typeof main?.openComponent !== 'function' || !noteRegistered) return false;
+  const args: NoteArgs = { vault: v.id, path, line: line ?? null, n: ++shown };
+  try {
+    history.pushState({ rvNote: args }, '', location.href);
+    main.openComponent(NOTE, args);
+    return true;
+  } catch { return false; }
+}
+let noteRegistered = false;
+/** Leave the note, if the main window shows one: Roam draws the page it is on again. */
+async function closeNote() {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  try { if ((await main.getOpenView?.())?.id === NOTE) await main.closeComponent(); } catch { /* Roam shows what it has */ }
+}
+function onPop(e: PopStateEvent) {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  const args = e.state?.rvNote as NoteArgs | undefined;
+  if (args && vaults.some((v) => v.id === args.vault)) { try { main.openComponent(NOTE, { ...args, n: ++shown }); } catch { /* Roam shows what it has */ } }
+  else closeNote();
+}
+function registerNote(): () => void {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  if (typeof main?.registerComponent !== 'function' || !(window as any).React) return () => {};
+  try { main.registerComponent(NOTE, NoteView); } catch { return () => {}; }
+  noteRegistered = true;
+  window.addEventListener('popstate', onPop);
+  return () => {
+    noteRegistered = false;
+    window.removeEventListener('popstate', onPop);
+    closeNote().then(() => { try { main.unregisterComponent(NOTE); } catch { /* gone with Roam */ } });
+  };
+}
+
 function openInRoam(title: string, where: Where): boolean {
   const api = window.roamAlphaAPI;
   let uid: string | undefined;
@@ -412,6 +465,7 @@ async function onload({ extensionAPI }: { extensionAPI: any }) {
   const load = ++loads;
   cleanups.push(installStyles());
   cleanups.push(followBrackets());
+  cleanups.push(registerNote());
   settingsAPI = extensionAPI?.settings;
   try { showCounts = settingsAPI?.get?.(COUNTS_SETTING) === true; } catch { showCounts = false; }
   workerUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }));

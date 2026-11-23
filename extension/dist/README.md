@@ -92,11 +92,12 @@ is drawn as in Linked References, and works the same way:
 
 Notes exported from Roam as Markdown come out with the same blocks, paths and links they had in Roam.
 
-Click a note title or a line's bullet to read the whole note in Roam. Links between notes work inside the viewer.
-If you use Obsidian, click **Open in Obsidian** in the viewer to jump to the note there. To use another
+Click a note title or a line's bullet to open the whole note in Roam's main window, as a page opens. Back
+returns to where you were, and links between notes work inside it. Shift-click opens the note over the page
+instead. If you use Obsidian, click **Open in Obsidian** beside the note's title to jump to the note there. To use another
 editor, see [Opening notes in another editor](#opening-notes-in-another-editor).
 
-![The note viewer, opened from a line, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/note-viewer.png)
+![A note in the main window, opened from a line, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/note-viewer.png)
 
 ### Notes with a similar name
 
@@ -218,7 +219,7 @@ suggested on a page that no note is named after. Only `.md` files are read. If y
 
 ### Opening notes in another editor
 
-The viewer's button opens notes in Obsidian. To open them in another editor instead, fill in **Open notes
+The button beside a note's title opens notes in Obsidian. To open them in another editor instead, fill in **Open notes
 with** in **Settings → Roam Depot → Vaults** with the link your editor uses to open a file. Put `{vault}`
 where the vault folder's name goes and `{file}` where the note's path inside the vault goes. The button then
 reads **Open in editor**. Leave the field empty to go back to Obsidian.

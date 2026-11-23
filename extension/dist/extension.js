@@ -233,8 +233,8 @@ function thing(parent, s, i, tok, flush) {
       const target = (hash < 0 ? targetPart : targetPart.slice(0, hash)).trim();
       const sub = hash < 0 ? "" : targetPart.slice(hash).trim();
       if (embed2 && IMAGE.test(target)) return put(close + 2, image(target, alias ?? ""));
-      const shown = sub ? [target, ...sub.split("#").filter(Boolean)].filter(Boolean).join(" > ") : targetPart;
-      const link = alias !== null ? pageAlias(target, (embed2 ? "\u{1F4CE} " : "") + alias, sub) : sub.startsWith("#^") && !embed2 ? blockRef(target, sub, targetPart) : pageRef(target, (embed2 ? "\u{1F4CE} " : "") + shown, sub);
+      const shown2 = sub ? [target, ...sub.split("#").filter(Boolean)].filter(Boolean).join(" > ") : targetPart;
+      const link = alias !== null ? pageAlias(target, (embed2 ? "\u{1F4CE} " : "") + alias, sub) : sub.startsWith("#^") && !embed2 ? blockRef(target, sub, targetPart) : pageRef(target, (embed2 ? "\u{1F4CE} " : "") + shown2, sub);
       return put(close + 2, embed2 ? embedOf(target, sub, link) : link);
     }
     const mid = closing(s, o + 1, "[", "]");
@@ -343,14 +343,14 @@ function closing(s, i, open4, close) {
   }
   return -1;
 }
-function pageRef(target, shown, sub = "") {
+function pageRef(target, shown2, sub = "") {
   const wrap = el("span");
   wrap.dataset.linkTitle = target;
   const a = el("span", "rm-page-ref rm-page-ref--link");
   a.dataset.rvTarget = target;
   if (sub) a.dataset.rvSub = sub;
-  if (shown.includes("[[")) spans(a, shown);
-  else a.textContent = shown;
+  if (shown2.includes("[[")) spans(a, shown2);
+  else a.textContent = shown2;
   wrap.append(el("span", "rm-page-ref__brackets", "[["), a, el("span", "rm-page-ref__brackets", "]]"));
   return wrap;
 }
@@ -383,11 +383,11 @@ function blockRef(target, sub, written) {
   ref.append(el("span", "", written));
   return ref;
 }
-function pageAlias(target, shown, sub = "") {
+function pageAlias(target, shown2, sub = "") {
   const a = el("a", "rm-alias rm-alias--page");
   a.dataset.rvTarget = target;
   if (sub) a.dataset.rvSub = sub;
-  spans(a, shown);
+  spans(a, shown2);
   return a;
 }
 function tag(name) {
@@ -817,6 +817,7 @@ var STYLES = `
 .rv-viewer{background:#fff;color:#182026;width:min(760px,92vw);max-height:86vh;display:flex;flex-direction:column;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.3)}
 .rv-viewer-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #e5e5ea}
 .rv-viewer-head h3{margin:0;font-size:18px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv-note-open{white-space:nowrap;flex:none;align-self:center}
 .rv-viewer-path{flex:none;padding:4px 16px 0;color:#8a8a99;font-size:12px}
 .rv-viewer-body{min-height:0;padding:8px 20px 20px 4px;overflow:auto}
 .rv-viewer-body.rv-preview{padding:4px 12px 6px 0;max-height:480px;overflow:auto}
@@ -973,7 +974,7 @@ ${path}`;
           { class: "rm-ref-page-view-title rv-group-title" },
           h(
             "a",
-            { onclick: () => v.act.view(path) },
+            { onclick: (e) => v.act.view(path, void 0, e.shiftKey) },
             h(
               "span",
               { class: "rm-page__title rv-note", style: "cursor: pointer; text-decoration: none;" },
@@ -1089,7 +1090,7 @@ function marked(text, from, marks) {
 function referenceEl(block, path, act) {
   const inner = h("div", {});
   const ctx = ctxOf(path, act);
-  const show = (up, shown, mark) => {
+  const show = (up, shown2, mark) => {
     const zoom = h("div", { class: "rm-zoom zoom-mentions-view" }, ...up.map((u, i) => {
       const text = h("span", {});
       blockBody(text, u.text.split("\n")[0]);
@@ -1100,7 +1101,7 @@ function referenceEl(block, path, act) {
         i < up.length - 1 ? h("span", { class: "bp3-icon-standard bp3-icon-chevron-right rm-mention-icon" }) : null
       );
     }));
-    inner.replaceChildren(zoom, blockEl(shown, 1, { ...ctx, mark }));
+    inner.replaceChildren(zoom, blockEl(shown2, 1, { ...ctx, mark }));
   };
   const expand = async (i) => {
     let text;
@@ -1119,9 +1120,9 @@ function referenceEl(block, path, act) {
       return null;
     };
     const last = block.up.length - 1;
-    let shown = find(whole, block.up[last].line) ?? { text: block.up[last].text, line: block.up[last].line, kids: [block] };
-    for (let k = last - 1; k >= i; k--) shown = { text: block.up[k].text, line: block.up[k].line, kids: [shown] };
-    show(block.up.slice(0, i), shown, block.line);
+    let shown2 = find(whole, block.up[last].line) ?? { text: block.up[last].text, line: block.up[last].line, kids: [block] };
+    for (let k = last - 1; k >= i; k--) shown2 = { text: block.up[k].text, line: block.up[k].line, kids: [shown2] };
+    show(block.up.slice(0, i), shown2, block.line);
   };
   show(block.up, block);
   return h("div", { class: "flex-h-box flex-align-start" }, h("div", { class: "rm-reference-item dont-focus-block" }, inner));
@@ -1130,7 +1131,7 @@ var MAX_EMBEDS = 3;
 function ctxOf(path, act, depth = 0, noteFirst = false) {
   return {
     read: () => act.read(path),
-    open: (line) => act.view(path, line),
+    open: (line, side) => act.view(path, line, side),
     link: (e) => linkClick(e, path, act, noteFirst),
     refs: (el2) => fill2(el2, path, act, depth)
   };
@@ -1203,7 +1204,7 @@ async function embed(ph, from, act, depth) {
         {},
         h("span", { class: "rm-page__title", tabindex: "-1", style: "cursor: pointer; text-decoration: none;", onclick: (e) => {
           e.stopPropagation();
-          act.view(to);
+          act.view(to, void 0, e.shiftKey);
         } }, to.slice(to.lastIndexOf("/") + 1).replace(/\.md$/i, ""))
       ))
     );
@@ -1249,7 +1250,7 @@ function blockEl(b, level, ctx) {
   const c = h("span", { class: `bp3-icon-standard bp3-icon-caret-down rm-caret rm-caret-hidden${has ? " rv-kids-caret" : ""}` });
   const bullet = h(
     "span",
-    { class: b.n === void 0 ? "rm-bullet" : `rm-bullet rm-bullet--numbered rm-bullet--numbered-${b.n < 10 ? "single" : "double"}-digit`, onclick: () => ctx.open?.(b.line) },
+    { class: b.n === void 0 ? "rm-bullet" : `rm-bullet rm-bullet--numbered rm-bullet--numbered-${b.n < 10 ? "single" : "double"}-digit`, onclick: (e) => ctx.open?.(b.line, e.shiftKey) },
     h("span", { class: "bp3-popover-wrapper" }, h(
       "span",
       { class: "bp3-popover-target" },
@@ -1335,7 +1336,7 @@ function linkClick(e, from, act, noteFirst = false) {
     try {
       const to = target ? await act.resolve(target, from) : from;
       if (!to) return false;
-      act.view(to, sub ? lineOfSub(await act.read(to), sub) : void 0);
+      act.view(to, sub ? lineOfSub(await act.read(to), sub) : void 0, where !== "main");
       return true;
     } catch {
       return false;
@@ -1396,16 +1397,49 @@ async function openViewer(path, line, act) {
   document.addEventListener("keydown", onKey, true);
   try {
     const text = await act.read(path);
-    const links = { resolve: act.resolve, read: act.read, image: act.image, view: (to, at) => {
-      openViewer(to, at, act);
-    }, go: (title2, where) => {
-      const ok = act.go(title2, where);
-      if (ok && where === "main") closeViewer();
-      return ok;
-    } };
+    const links = {
+      resolve: act.resolve,
+      read: act.read,
+      image: act.image,
+      view: (to, at) => {
+        openViewer(to, at, act);
+      },
+      // a note opened from the dialog opens in it
+      go: (title2, where) => {
+        const ok = act.go(title2, where);
+        if (ok && where === "main") closeViewer();
+        return ok;
+      }
+    };
     body.replaceChildren(noteEl(text, { ...ctxOf(path, links, 0, true), open: void 0 }, line));
   } catch (e) {
     body.replaceChildren(`Couldn't read this note: ${e.message}`);
+  }
+}
+async function drawNote(host, path, line, act, view) {
+  const title = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+  const blocks = h("div", { class: "rm-block-children rm-block__children rm-level-0" });
+  host.replaceChildren(h(
+    "div",
+    { class: "rm-article-wrapper rm-spacing--small rv-note-page", [ATTR]: "note" },
+    h("div", { class: "roam-article" }, h(
+      "div",
+      {},
+      h(
+        "div",
+        { class: "rm-title-display-container" },
+        h("h1", { class: "rm-title-display" }, h("span", {}, title)),
+        h("button", { class: "bp3-button bp3-small bp3-minimal rv-note-open", onclick: () => act.openOutside(path) }, act.openLabel())
+      ),
+      blocks
+    ))
+  ));
+  try {
+    const text = await act.read(path);
+    blocks.replaceChildren(noteEl(text, ctxOf(path, { resolve: act.resolve, read: act.read, image: act.image, go: act.go, view }, 0, true), line));
+    blocks.querySelector(".rv-hl")?.scrollIntoView({ block: "center" });
+  } catch (e) {
+    blocks.replaceChildren(`Couldn't read this note: ${e.message}`);
   }
 }
 
@@ -1673,7 +1707,7 @@ function followBrackets() {
   };
   const hide = document.createElement("style");
   hide.setAttribute(ATTR, "brackets");
-  hide.textContent = ".rv-panel .rm-page-ref__brackets,.rv-viewer .rm-page-ref__brackets{display:none}";
+  hide.textContent = ".rv-panel .rm-page-ref__brackets,.rv-viewer .rm-page-ref__brackets,.rv-note-page .rm-page-ref__brackets{display:none}";
   hide.media = "not all";
   const probe = document.createElement("div");
   probe.setAttribute(ATTR, "probe");
@@ -1744,6 +1778,7 @@ var Vault = class {
   /** Another Roam window or tab has this vault open, and this one shows what that one's indexer
    *  has (see share.ts). The scan mark is that window's to keep. */
   follows = false;
+  viewer;
   constructor(id, handle) {
     this.id = id;
     this.handle = handle;
@@ -1776,11 +1811,14 @@ var Vault = class {
       openLabel: () => openLabel(openWith()),
       go: openInRoam
     };
+    this.viewer = viewer;
     this.act = {
       ...viewer,
       reconnect: () => this.connect(true),
       remove: () => removeVault(this),
-      view: (path, line) => openViewer(path, line, viewer),
+      view: (path, line, side) => {
+        if (side || !showNote(this, path, line)) openViewer(path, line, viewer);
+      },
       lines: (notes) => this.lines(notes)
     };
   }
@@ -2089,6 +2127,73 @@ function syncAllCounts() {
     if (refs instanceof HTMLElement && refs.matches(".rm-reference-main")) syncCounts(refs, panel);
   });
 }
+var NOTE = "roam-vaults-note";
+var shown = 0;
+function NoteView(p) {
+  return window.React.createElement("div", { ref: (el2) => {
+    const key = `${p.vault}
+${p.path}
+${p.line}
+${p.n}`;
+    if (!el2 || el2.dataset.rvKey === key) return;
+    el2.dataset.rvKey = key;
+    const v = vaults.find((x) => x.id === p.vault);
+    if (v) drawNote(el2, p.path, p.line ?? void 0, v.viewer, v.act.view);
+  } });
+}
+function showNote(v, path, line) {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  if (typeof main?.openComponent !== "function" || !noteRegistered) return false;
+  const args = { vault: v.id, path, line: line ?? null, n: ++shown };
+  try {
+    history.pushState({ rvNote: args }, "", location.href);
+    main.openComponent(NOTE, args);
+    return true;
+  } catch {
+    return false;
+  }
+}
+var noteRegistered = false;
+async function closeNote() {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  try {
+    if ((await main.getOpenView?.())?.id === NOTE) await main.closeComponent();
+  } catch {
+  }
+}
+function onPop(e) {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  const args = e.state?.rvNote;
+  if (args && vaults.some((v) => v.id === args.vault)) {
+    try {
+      main.openComponent(NOTE, { ...args, n: ++shown });
+    } catch {
+    }
+  } else closeNote();
+}
+function registerNote() {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  if (typeof main?.registerComponent !== "function" || !window.React) return () => {
+  };
+  try {
+    main.registerComponent(NOTE, NoteView);
+  } catch {
+    return () => {
+    };
+  }
+  noteRegistered = true;
+  window.addEventListener("popstate", onPop);
+  return () => {
+    noteRegistered = false;
+    window.removeEventListener("popstate", onPop);
+    closeNote().then(() => {
+      try {
+        main.unregisterComponent(NOTE);
+      } catch {
+      }
+    });
+  };
+}
 function openInRoam(title, where) {
   const api = window.roamAlphaAPI;
   let uid;
@@ -2150,6 +2255,7 @@ async function onload({ extensionAPI }) {
   const load = ++loads;
   cleanups.push(installStyles());
   cleanups.push(followBrackets());
+  cleanups.push(registerNote());
   settingsAPI = extensionAPI?.settings;
   try {
     showCounts = settingsAPI?.get?.(COUNTS_SETTING) === true;

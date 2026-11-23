@@ -37,6 +37,7 @@ const STYLES = `
 .rv-viewer{background:#fff;color:#182026;width:min(760px,92vw);max-height:86vh;display:flex;flex-direction:column;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.3)}
 .rv-viewer-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #e5e5ea}
 .rv-viewer-head h3{margin:0;font-size:18px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv-note-open{white-space:nowrap;flex:none;align-self:center}
 .rv-viewer-path{flex:none;padding:4px 16px 0;color:#8a8a99;font-size:12px}
 .rv-viewer-body{min-height:0;padding:8px 20px 20px 4px;overflow:auto}
 .rv-viewer-body.rv-preview{padding:4px 12px 6px 0;max-height:480px;overflow:auto}
@@ -98,7 +99,9 @@ export type SectionState =
 export interface SectionActions {
   reconnect(): void;
   remove(): void;
-  view(path: string, line?: number): void;
+  /** Open a note: in Roam's main window, as a click on a page's title opens the page; `side` (a
+   *  shift-click, which in Roam opens the sidebar) in the dialog over the page. */
+  view(path: string, line?: number, side?: boolean): void;
   openOutside(path: string): void;
   openLabel(): string;
   read(path: string): Promise<string>;
@@ -219,7 +222,7 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
     return h('div', { class: 'rm-ref-page-view rv-group' + cls },
       h('div', { class: 'flex-h-box rm-title-arrow-wrapper rv-group-head' }, c,
         h('div', { class: 'rm-ref-page-view-title rv-group-title' },
-          h('a', { onclick: () => v.act.view(path) },
+          h('a', { onclick: (e: MouseEvent) => v.act.view(path, undefined, e.shiftKey) },
             h('span', { class: 'rm-page__title rv-note', style: 'cursor: pointer; text-decoration: none;' },
               showVault || name ? h('span', { class: 'rv-vault' }, (showVault ? `${v.name}/` : '') + path.slice(0, name)) : null,
               ...marked(path.slice(name).replace(/\.md$/i, ''), 0, marks)))),
@@ -364,14 +367,14 @@ function referenceEl(block: LineContext, path: string, act: SectionActions): HTM
 
 /** What a drawn block needs of the note it is from. */
 /** What drawing a note's blocks asks of its vault. */
-type NoteActs = Pick<SectionActions, 'go' | 'resolve' | 'read' | 'image'> & { view(path: string, line?: number): void };
+type NoteActs = Pick<SectionActions, 'go' | 'resolve' | 'read' | 'image' | 'view'>;
 /** An embed in an embed in an embed is drawn; one more level down stays a link. */
 const MAX_EMBEDS = 3;
 /** The context for the blocks of the note at `path`. `depth`: how many embeds it is inside. */
 function ctxOf(path: string, act: NoteActs, depth = 0, noteFirst = false): BlockCtx {
   return {
     read: () => act.read(path),
-    open: (line) => act.view(path, line),
+    open: (line, side) => act.view(path, line, side),
     link: (e) => linkClick(e, path, act, noteFirst),
     refs: (el) => fill(el, path, act, depth),
   };
@@ -429,7 +432,7 @@ async function embed(ph: HTMLElement, from: string, act: NoteActs, depth: number
     } });
     const box = h('div', { class: 'rm-embed rm-embed--page rm-embed-container dont-focus-block nodrag' }, bar,
       h('h3', { class: 'rm-page__title' }, h('a', {},
-        h('span', { class: 'rm-page__title', tabindex: '-1', style: 'cursor: pointer; text-decoration: none;', onclick: (e: Event) => { e.stopPropagation(); act.view(to); } }, to.slice(to.lastIndexOf('/') + 1).replace(/\.md$/i, '')))));
+        h('span', { class: 'rm-page__title', tabindex: '-1', style: 'cursor: pointer; text-decoration: none;', onclick: (e: MouseEvent) => { e.stopPropagation(); act.view(to, undefined, e.shiftKey); } }, to.slice(to.lastIndexOf('/') + 1).replace(/\.md$/i, '')))));
     put(box);
     return;
   }
@@ -451,7 +454,7 @@ interface BlockCtx {
   /** The note's text, for children that did not come with the block. */
   read(): Promise<string>;
   /** A click on the block's bullet, which in Roam opens the block: open the note at that line. Left out where the note is already open. */
-  open?(line: number): void;
+  open?(line: number, side?: boolean): void;
   /** A click in the block's text: follow the link it landed on, if any. */
   link(e: MouseEvent): boolean;
   /** Fill the block references in a block's text in. */
@@ -474,7 +477,7 @@ function blockEl(b: OutlineBlock, level: number, ctx: BlockCtx): HTMLElement {
   const kidsBox = h('div', { class: `rm-block-children rm-block__children rm-level-${level + 1}` });
   const c = h('span', { class: `bp3-icon-standard bp3-icon-caret-down rm-caret rm-caret-hidden${has ? ' rv-kids-caret' : ''}` });
   // an item of a numbered list has its number for a bullet, as the children of a block viewed as numbered have in Roam
-  const bullet = h('span', { class: b.n === undefined ? 'rm-bullet' : `rm-bullet rm-bullet--numbered rm-bullet--numbered-${b.n < 10 ? 'single' : 'double'}-digit`, onclick: () => ctx.open?.(b.line) },
+  const bullet = h('span', { class: b.n === undefined ? 'rm-bullet' : `rm-bullet rm-bullet--numbered rm-bullet--numbered-${b.n < 10 ? 'single' : 'double'}-digit`, onclick: (e: MouseEvent) => ctx.open?.(b.line, e.shiftKey) },
     h('span', { class: 'bp3-popover-wrapper' }, h('span', { class: 'bp3-popover-target' }, // Roam's wrappers: they set the line the dot sits on
       b.n === undefined ? h('span', { class: 'rm-bullet__inner' }) : h('span', { class: 'rm-bullet__inner--numbered' }, `${b.n}.`))));
   const box = h('div', { class: 'roam-block-container rm-block rm-not-focused block-bullet-view' + (heading ? ` rm-heading-level-${Math.min(heading, 3)}` : '')
@@ -536,7 +539,7 @@ function linkClick(e: MouseEvent, from: string, act: NoteActs, noteFirst = false
     try {
       const to = target ? await act.resolve(target, from) : from;
       if (!to) return false;
-      act.view(to, sub ? lineOfSub(await act.read(to), sub) : undefined);
+      act.view(to, sub ? lineOfSub(await act.read(to), sub) : undefined, where !== 'main');
       return true;
     } catch { return false; }
   };
@@ -586,9 +589,31 @@ export async function openViewer(path: string, line: number | undefined, act: Vi
   document.addEventListener('keydown', onKey, true);
   try {
     const text = await act.read(path);
-    const links: NoteActs = { resolve: act.resolve, read: act.read, image: act.image, view: (to: string, at?: number) => { openViewer(to, at, act); }, go: (title: string, where: Where) => { const ok = act.go(title, where); if (ok && where === 'main') closeViewer(); return ok; } };
+    const links: NoteActs = { resolve: act.resolve, read: act.read, image: act.image, view: (to: string, at?: number) => { openViewer(to, at, act); }, // a note opened from the dialog opens in it
+      go: (title: string, where: Where) => { const ok = act.go(title, where); if (ok && where === 'main') closeViewer(); return ok; } };
     body.replaceChildren(noteEl(text, { ...ctxOf(path, links, 0, true), open: undefined }, line));
   } catch (e) {
     body.replaceChildren(`Couldn't read this note: ${(e as Error).message}`);
+  }
+}
+
+// ---------- a note in the main window ----------
+/** A note as a page in Roam's main window: its name as the page title, its blocks under it, with
+ *  the elements Roam's own page has (measured in Roam, 2026-11-23). `view` opens another note. */
+export async function drawNote(host: HTMLElement, path: string, line: number | undefined, act: ViewerActions, view: SectionActions['view']) {
+  const title = path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/i, '');
+  const blocks = h('div', { class: 'rm-block-children rm-block__children rm-level-0' });
+  host.replaceChildren(h('div', { class: 'rm-article-wrapper rm-spacing--small rv-note-page', [ATTR]: 'note' },
+    h('div', { class: 'roam-article' }, h('div', {},
+      h('div', { class: 'rm-title-display-container' },
+        h('h1', { class: 'rm-title-display' }, h('span', {}, title)),
+        h('button', { class: 'bp3-button bp3-small bp3-minimal rv-note-open', onclick: () => act.openOutside(path) }, act.openLabel())),
+      blocks))));
+  try {
+    const text = await act.read(path);
+    blocks.replaceChildren(noteEl(text, ctxOf(path, { resolve: act.resolve, read: act.read, image: act.image, go: act.go, view }, 0, true), line));
+    blocks.querySelector('.rv-hl')?.scrollIntoView({ block: 'center' });
+  } catch (e) {
+    blocks.replaceChildren(`Couldn't read this note: ${(e as Error).message}`);
   }
 }

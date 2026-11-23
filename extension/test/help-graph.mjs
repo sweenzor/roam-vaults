@@ -137,6 +137,7 @@ await page.evaluate(async ({ FILES, code }) => {
   [...box.querySelectorAll('button')].find((b) => b.textContent === 'Add vault folder').click();
 }, { FILES: Object.fromEntries(Object.entries(FILES).map(([k, v]) => [k, typeof v === 'string' ? v : [...v]])), code });
 
+const back = async () => { await page.goBack(); await page.waitForSelector('.roam-article .rv-panel .rm-reference-item'); await page.waitForTimeout(400); };
 const open = async (title) => {
   await page.evaluate((title) => window.roamAlphaAPI.ui.mainWindow.openPage({ page: { title } }), title);
   await page.waitForFunction((title) => document.querySelector('.roam-article .rm-title-display')?.textContent === title, title);
@@ -285,9 +286,24 @@ check('the note that is the page unfolds into its blocks', JSON.stringify(await 
 await shot('6-note-unfolded.png');
 // the bullet opens the note at that block
 await page.locator('.rv-panel .rm-reference-item', { hasText: 'trial bake' }).locator('.rm-bullet').first().click();
-await page.waitForSelector('.rv-viewer .roam-block-container');
-check('a click on a bullet opens the note with that block marked', (await page.locator('.rv-viewer .block-highlight-yellow .rm-block-text').innerText()).includes('trial bake'));
+await page.waitForSelector('.rv-note-page .roam-block-container');
+check('a click on a bullet opens the note with that block marked', (await page.locator('.rv-note-page .block-highlight-yellow .rm-block-text').innerText()).includes('trial bake'));
 await page.screenshot({ path: path.join(OUT, '7-note-opened.png') });
+// the note is where a page would be: its title where the page's title was, the same size
+const titleOf = () => page.evaluate(() => { const t = document.querySelector('.roam-article .rm-title-display'), r = t.getBoundingClientRect(), cs = getComputedStyle(t); return [Math.round(r.left), Math.round(r.top), cs.fontSize, cs.fontWeight, cs.color].join(' '); });
+const noteTitle = await titleOf();
+check('the note opens in the main window, named by its file', (await page.locator('.rv-note-page .rm-title-display').innerText()) === 'Wholesale' && await page.evaluate(async () => (await window.roamAlphaAPI.ui.mainWindow.getOpenView()).type === 'custom'));
+await back();
+check('Back returns to the page', (await page.locator('.roam-article .rm-title-display').first().textContent()) === PAGE && (await page.locator('.rv-note-page').count()) === 0, await page.evaluate(async () => JSON.stringify([[...document.querySelectorAll('.rm-title-display')].map((t) => t.textContent), document.querySelectorAll('.rv-note-page').length, await window.roamAlphaAPI.ui.mainWindow.getOpenView(), location.hash, history.state])));
+check('the note\'s title is drawn where the page\'s is', noteTitle === await titleOf(), `${noteTitle} / ${await titleOf()}`);
+await page.goForward();
+await page.waitForSelector('.rv-note-page .block-highlight-yellow');
+check('Forward comes back to the note, at its block', (await page.locator('.rv-note-page .block-highlight-yellow .rm-block-text').innerText()).includes('trial bake'));
+await back();
+// shift-click, which in Roam opens the sidebar: the dialog over the page
+await page.locator('.rv-panel .rm-reference-item', { hasText: 'trial bake' }).locator('.rm-bullet').first().click({ modifiers: ['Shift'] });
+await page.waitForSelector('.rv-viewer .block-highlight-yellow');
+check('shift-click on a bullet opens the note over the page', (await page.locator('.rv-note-page').count()) === 0);
 await page.keyboard.press('Escape');
 
 // ---------- a block that names another block, and a link to a heading ----------
@@ -302,16 +318,16 @@ await shot('8-block-reference.png');
   compare({ ...m, roam: only(m.roam), vault: only(m.vault) }, 'block reference');
 }
 await page.locator('.rv-panel .rm-block-ref').click();
-await page.waitForSelector('.rv-viewer .roam-block-container');
-check('a click on a block reference opens the note with that block marked', (await page.locator('.rv-viewer .block-highlight-yellow .rm-block-text').first().innerText()) === COLD.replaceAll('*', ''));
-await page.keyboard.press('Escape');
+await page.waitForSelector('.rv-note-page .roam-block-container');
+check('a click on a block reference opens the note with that block marked', (await page.locator('.rv-note-page .block-highlight-yellow .rm-block-text').first().innerText()) === COLD.replaceAll('*', ''));
+await back();
 const head = page.locator('.rv-panel .rm-page-ref--link', { hasText: 'Proofing > Cold' });
 check('a link to a heading reads "Note > Heading"', await head.count() === 1);
 await head.click();
-await page.waitForSelector('.rv-viewer .roam-block-container');
-check('and opens the note with the heading marked', (await page.locator('.rv-viewer .block-highlight-yellow .rm-block-text').first().innerText()) === 'Cold');
+await page.waitForSelector('.rv-note-page .roam-block-container');
+check('and opens the note with the heading marked', (await page.locator('.rv-note-page .block-highlight-yellow .rm-block-text').first().innerText()) === 'Cold');
 await page.screenshot({ path: path.join(OUT, '9-heading-opened.png') });
-await page.keyboard.press('Escape');
+await back();
 
 // ---------- embeds and a picture from the vault ----------
 await page.setViewportSize({ width: 1440, height: 1800 });

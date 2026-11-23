@@ -11,7 +11,7 @@ export function followBrackets(): () => void {
   // The rule that hides the brackets of vault lines; `media` turns it on and off.
   const hide = document.createElement('style');
   hide.setAttribute(ATTR, 'brackets');
-  hide.textContent = '.rv-panel .rm-page-ref__brackets,.rv-viewer .rm-page-ref__brackets{display:none}';
+  hide.textContent = '.rv-panel .rm-page-ref__brackets,.rv-viewer .rm-page-ref__brackets,.rv-note-page .rm-page-ref__brackets{display:none}';
   hide.media = 'not all';
   const probe = document.createElement('div');
   probe.setAttribute(ATTR, 'probe');

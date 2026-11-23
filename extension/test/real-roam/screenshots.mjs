@@ -161,12 +161,14 @@ async function main() {
   await snap('unfolded-note', { x: panel.x - 16, y: head.y - 12, width: panel.width + 32, height: next.y + next.height - head.y + 24 });
   await roam.page.locator('.roam-article .rv-group-caret').first().click();
 
-  // 4. The note viewer, opened from a line, with that line marked.
+  // 4. The note in the main window, opened from a line, with that line marked.
   await roam.page.locator('.roam-article .rv-panel .rm-block-main', { hasText: 'Showed up on the' }).locator('.rm-bullet').click();
-  await waitFor('the note viewer', () => evalIn(() => !!document.querySelector('.rv-viewer .rv-hl')), 10000);
+  await waitFor('the note in the main window', () => evalIn(() => !!document.querySelector('.rv-note-page .rv-hl')), 10000);
   await sleep(500);
-  await snap('note-viewer', await boxOf('.rv-viewer', 40));
-  await roam.page.keyboard.press('Escape');
+  await snap('note-viewer', await pageBox());
+  await evalIn(() => history.back());
+  await waitFor('the page again', async () => (await panelText()).includes('Passata'), 20000);
+  await sleep(300);
 
   // 4b. A line from a nested list: the line it sits under above it, and its own children opened.
   const nested = roam.page.locator('.roam-article .rv-panel .rm-block-main', { hasText: 'Tied the' });

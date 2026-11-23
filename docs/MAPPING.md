@@ -51,7 +51,7 @@ Roam has none, leave it out rather than invent UI.
 | Footnote | Superscript and a notes section | None | Raw `[^1]` | Minor |
 | Backlinks pane | One raw line per match. No parent path | Linked References | Roam's layout: path above the block, children under it | Roam's filter and search |
 | Unlinked mentions | The name and aliases in plain text, with a Link button | Unlinked References | Not present; only notes with a similar name | Needs note text |
-| Opening a note | Tab; ctrl-click a new tab | Main window; shift-click the sidebar | A dialog over the page | Not a Roam pattern |
+| Opening a note | Tab; ctrl-click a new tab | Main window; shift-click the sidebar | Roam's main window, drawn as a page, with Back and Forward; shift-click a dialog over the page | Roam's sidebar takes no windows from an extension, so shift-click can't open one there |
 | Unresolved link | Dimmed; a click creates the note | A link is always a page | Greyed after a click | Minor |
 | Rename | Links are rewritten | Renames propagate | The vault is watched and indexed again | None |
 | Canvas | A board; its links count as backlinks | None | Not read | Links in a canvas could count as references |
@@ -116,9 +116,8 @@ What the extension copies from Roam, measured in Linked References:
 
 1. OKF: detect a bundle, show `title` as the note's name, link order per the spec, `type` and `status` as page references.
 2. A page per property key, listing the notes that have it.
-3. A note in the main window and the sidebar, in place of the dialog.
-4. Linked References' search and filter on the vault section, and its right-click menus.
-5. Unlinked mentions from vaults. This needs note text, so it belongs with full-text search.
+3. Linked References' search and filter on the vault section, and its right-click menus.
+4. Unlinked mentions from vaults. This needs note text, so it belongs with full-text search.
 
 ## What cannot be mapped
 

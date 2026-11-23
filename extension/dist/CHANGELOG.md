@@ -40,6 +40,9 @@
 - The index is built again by the first scan after this update.
 - Frontmatter `tags` written as one string with commas or spaces (`tags: a, b`) no longer make tags.
   Obsidian reads tags from a list (`tags: [a, b]`), and Vaults now does the same.
+- A note opens in Roam's main window, drawn as a page: its name as the title and its outline under it. Back
+  and Forward work as they do between pages. Shift-click opens it over the page instead (Roam's sidebar
+  takes no windows from an extension).
 
 ## 0.2.0 (2026-11-22)
 
