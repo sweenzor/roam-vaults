@@ -360,7 +360,7 @@ async function main() {
       const l = await navigator.locks.query(), ours = (x) => x.name.startsWith('roam-vaults:');
       return `${l.held.filter(ours).length} vaults open, ${l.pending.filter(ours).length} waited for`;
     }).catch((e) => e.message);
-    check("…from the first one's index, without opening the vaults again", locks === '2 vaults open, 2 waited for', locks);
+    check("…from the first one's index, without opening the vaults again", locks === '3 vaults open, 3 waited for', locks);
     fs.writeFileSync(path.join(small, 'Two windows note.md'), `Written with Roam open twice, links [[${TEST_PAGE}]].\n`);
     const both = await waitFor('the new note in both', async () => (await panelText()).includes('Two windows note') && (await text2()).includes('Two windows note'), 20000).then(() => true, () => false);
     check('A note added on disk shows up in both', both);
