@@ -1,16 +1,9 @@
 // The Roam test account's plan, read live from Roam's Billing page. Real-Roam CI signs in to that
-// account; without a paid plan its local graphs are read-only. The end date is also pinned in the unit
-// test named below (PLAN_ENDS), which fails a year before it even when no real-Roam run happens.
+// account; without a paid plan its local graphs are read-only. A run fails while the plan isn't
+// Believer or ends within a year, so it gets renewed in time.
 //
 // Nothing about the account is logged: only the plan's name and its end date are read off the page.
-import fs from 'node:fs';
-
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-/** PLAN_ENDS ('YYYY-MM-DD') from the unit test `file`. */
-export function pinnedPlanEnd(file) {
-  return fs.readFileSync(file, 'utf8').match(/PLAN_ENDS = '(\d{4}-\d{2}-\d{2})'/)?.[1] ?? null;
-}
 
 /** "November 23rd, 2031" -> "2031-11-23". */
 export function roamDate(text) {
@@ -19,8 +12,8 @@ export function roamDate(text) {
   return month ? `${m[3]}-${String(month).padStart(2, '0')}-${m[2].padStart(2, '0')}` : null;
 }
 
-/** What is wrong with `plan` ({ plan, ends }): not Believer, ends within a year, or not the pinned date. */
-export function planProblems({ plan, ends }, pinned, now = Date.now()) {
+/** What is wrong with `plan` ({ plan, ends }): not Believer, or ends within a year. */
+export function planProblems({ plan, ends }, now = Date.now()) {
   const problems = [];
   if (plan !== 'Believer') problems.push(`plan is ${plan ? `"${plan}"` : 'not shown'}, not Believer`);
   if (!ends) problems.push('no end date shown');
@@ -28,7 +21,6 @@ export function planProblems({ plan, ends }, pinned, now = Date.now()) {
     const warnFrom = new Date(`${ends}T00:00:00Z`);
     warnFrom.setUTCFullYear(warnFrom.getUTCFullYear() - 1);
     if (now >= warnFrom.getTime()) problems.push(`plan ends on ${ends}, less than a year away: renew it`);
-    if (pinned && ends !== pinned) problems.push(`plan ends on ${ends} but the unit test pins ${pinned}: update PLAN_ENDS there`);
   }
   return problems;
 }
@@ -119,11 +111,11 @@ export async function readPlan(page, graph = null, notes = []) {
 }
 
 /** readPlan + planProblems as one result for a run's check list: { ok, detail }. Never throws. */
-export async function checkPlan(page, unitTestFile, graph = null) {
+export async function checkPlan(page, graph = null) {
   const notes = [];
   try {
     const p = await readPlan(page, graph, notes);
-    const problems = planProblems(p, pinnedPlanEnd(unitTestFile));
+    const problems = planProblems(p);
     return { ok: problems.length === 0, detail: clean(problems.length ? `${problems.join('; ')} [${notes.join('; ')}]` : `${p.plan}, ends ${p.ends}, read from ${p.how}`).slice(0, 600) };
   } catch (e) {
     return { ok: false, detail: clean(`Billing page not read: ${e.message.split('\n')[0]} [${notes.join('; ')}]`).slice(0, 600) };

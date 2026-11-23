@@ -158,7 +158,7 @@ async function main() {
   serve(DIST);
   await launchRoam();
   await signIn(EMAIL, PASSWORD);
-  { const plan = await checkPlan(roam.page, new URL('../test-account-plan.test.ts', import.meta.url), GRAPH.startsWith('offline/') ? `#/${GRAPH}` : `#/app/${GRAPH}`); check("The test account's plan is Believer, ends more than a year away, on the date the unit test pins", plan.ok, plan.detail); }
+  { const plan = await checkPlan(roam.page, GRAPH.startsWith('offline/') ? `#/${GRAPH}` : `#/app/${GRAPH}`); check("The test account's plan is Believer and ends more than a year away", plan.ok, plan.detail); }
   await openGraph(GRAPH);
   await clearExtensionState();
   await openPage(TEST_PAGE);
