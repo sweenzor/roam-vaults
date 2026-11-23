@@ -104,6 +104,10 @@ editor, see [Opening notes in another editor](#opening-notes-in-another-editor).
 
 ![A note in the main window, opened from a line, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/note-viewer.png)
 
+The section's header has the same search box and filter as Linked References. Search narrows the lines to
+those with the words you type. The filter lists the pages the lines link to: click one to keep only the
+lines that link to it, shift-click to hide them. The filter stays with the page while Roam is open.
+
 ### Notes with a similar name
 
 When no note is named after the page, the section suggests notes whose name is close to it, so a typo or

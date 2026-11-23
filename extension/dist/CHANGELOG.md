@@ -49,6 +49,10 @@
 - A property's name is a page, as an attribute's name is in Roam: the page **author** lists every note
   with an `author` property, and a `Name::` written in a note (as Roam's Markdown export writes one)
   counts the same. Tags, aliases and `cssclasses` are left out: they are Roam's tags and aliases.
+- The section's header has Linked References' search box and filter. A search shows the references
+  whose block or path has the words, written as they are in the note with the words in yellow, as Roam
+  shows them. The filter lists the pages the references link to; click one to keep only the references
+  that link to it, shift-click to hide them. The count reads "1 of 3 external vault references" meanwhile.
 
 ## 0.2.0 (2026-11-22)
 

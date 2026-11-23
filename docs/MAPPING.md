@@ -49,7 +49,7 @@ Roam has none, leave it out rather than invent UI.
 | Code | Highlighted | Code block | Plain `pre` | No highlighting |
 | Mermaid, math | Drawn, typeset | `{{mermaid}}`, `$$` | Code; raw TeX | Needs Roam's own renderers |
 | Footnote | Superscript and a notes section | None | Raw `[^1]` | Minor |
-| Backlinks pane | One raw line per match. No parent path | Linked References | Roam's layout: path above the block, children under it | Roam's filter and search |
+| Backlinks pane | One raw line per match. No parent path | Linked References | Roam's layout: path above the block, children under it; Roam's search box and filter in the header | Roam's gear (group by page, nesting) and the filter's global pin |
 | Unlinked mentions | The name and aliases in plain text, with a Link button | Unlinked References | Not present; only notes with a similar name | Needs note text |
 | Opening a note | Tab; ctrl-click a new tab | Main window; shift-click the sidebar | Roam's main window, drawn as a page, with Back and Forward; shift-click a dialog over the page | Roam's sidebar takes no windows from an extension, so shift-click can't open one there |
 | Unresolved link | Dimmed; a click creates the note | A link is always a page | Greyed after a click | Minor |
@@ -114,7 +114,7 @@ What the extension copies from Roam, measured in Linked References:
 
 ## What is left, in rough order
 
-1. Linked References' search and filter on the vault section, and its right-click menus.
+1. The right-click menus of Linked References, and its gear menu.
 2. Unlinked mentions from vaults. This needs note text, so it belongs with full-text search.
 3. Reference-style Markdown links (`[text][ref]` with `[ref]: target.md`).
 

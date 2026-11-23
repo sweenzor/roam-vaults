@@ -1,6 +1,6 @@
 // DOM pieces: styles, toasts, the "External Vault References" panel and the read-only note viewer.
 // Plain DOM with Blueprint 3 class names (Roam ships Blueprint), so no bundled UI library.
-import type { PageResult, Backlink } from '../engine.ts';
+import type { PageResult, Backlink, BacklinkLine } from '../engine.ts';
 import { blockBody, inline } from './markdown.ts';
 import { contextOf, kidsAt, lineOfSub, outlineOf, type OutlineBlock, type LineContext } from '../core/outline.ts';
 import { splitFrontmatter } from '../core/frontmatter.ts';
@@ -150,10 +150,188 @@ export function renderPanel(el: HTMLElement, vaults: PanelVault[]): number {
   }
   if (!n) { el.replaceChildren(); return 0; }
   const collapsed = isCollapsed();
+  const title = el.dataset.title ?? '';
+  const s = searches.get(el);
+  let q = s && s.title === title ? s.q : '';
+  const label = h('strong', {});
+  const body = h('div', { class: 'rv-sec-body' });
+  // What the search box narrows the list to: drawn again as it is typed in, the box staying as it is.
+  let drawn = 0;
+  const f = filtersOf(title);
+  const filter = filterButton(() => ready.map(({ r }) => (q ? searched(r, q) : r)), f, () => draw(), title);
+  const draw = () => {
+    const seq = ++drawn;
+    let shown = q ? ready.map(({ v, r }) => ({ v, r: searched(r, q) })) : ready;
+    const filtering = f.inc.size + f.rem.size > 0;
+    if (filtering) shown = shown.map(({ v, r }) => ({ v, r: filtered(r, f) }));
+    const narrowed = !!q || filtering;
+    const m = narrowed ? shown.reduce((k, { r }) => k + new Set([...r.counterparts, ...r.backlinks, ...r.tagged, ...(r.fuzzy ?? [])].map((x) => x.path)).size, 0) : n;
+    label.textContent = narrowed ? `${m} of ${n} external vault references` : `${n} External Vault References`;
+    // Roam's filter icon turns red while a filter is on
+    filter.querySelector<HTMLElement>('.bp3-icon-filter')!.style.color = filtering ? 'rgb(168, 42, 42)' : '';
+    body.replaceChildren(resultBody(el, shown, vaults.length > 1, q, filtering));
+    // Lines not read yet can't be searched or filtered: read them all, then draw again.
+    if (!narrowed) return;
+    const unread = ready.map(({ v, r }) => ({ v, notes: r.backlinks.filter((b) => b.unread) })).filter((u) => u.notes.length);
+    if (unread.length) Promise.all(unread.map(({ v, notes }) => v.act.lines(notes).catch(() => {}))).then(() => { if (seq === drawn && el.isConnected) draw(); });
+  };
+  const search = searchBox(q, (now) => {
+    q = now.trim().toLowerCase();
+    searches.set(el, { title, q });
+    draw();
+  });
+  const typing = document.activeElement instanceof HTMLInputElement && el.contains(document.activeElement);
   el.replaceChildren(h('div', { class: 'rv-sec' + (collapsed ? ' rv-collapsed' : '') },
-    sectionHead(`${n} External Vault References`, !collapsed),
-    h('div', { class: 'rv-sec-body' }, resultBody(el, ready, vaults.length > 1))));
+    sectionHead(label, !collapsed, [search, filter]), body));
+  if (typing) { const i = search.querySelector('input')!; i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+  draw();
   return n;
+}
+
+// ---------- the filter, as Linked References has it ----------
+interface Filters { inc: Map<string, string>; rem: Map<string, string> } // lower-case name -> name as written
+/** Each page's filters, kept while Roam is open, as Roam keeps a page's. */
+const pageFilters = new Map<string, Filters>();
+function filtersOf(title: string): Filters {
+  let f = pageFilters.get(title);
+  if (!f) { pageFilters.set(title, f = { inc: new Map(), rem: new Map() }); if (pageFilters.size > 200) pageFilters.delete(pageFilters.keys().next().value!); }
+  return f;
+}
+
+/** The pages a block's text links to, as Roam counts them for its filter: [[links]], #tags and an
+ *  attribute's name. Roam's titles are case-sensitive, and so are these. */
+export function refsIn(text: string, into = new Map<string, string>()): Map<string, string> {
+  const add = (name: string) => { const t = name.split('|')[0].split('#')[0].trim(); if (t) into.set(t, t); };
+  for (const m of text.matchAll(/\[\[([^[\]]+)\]\]/g)) add(m[1]);
+  for (const m of text.matchAll(/(?:^|\s)#([\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/gu)) add(m[1]);
+  const attr = /^([^:`[\]{}()#\n][^:`{}\n]{0,80}?)::(?=\s|$)/.exec(text);
+  if (attr) add(attr[1]);
+  return into;
+}
+/** A reference's pages, as Roam counts them: the links of its block, of the path above it and of
+ *  the blocks under it, and the page it is on (the note). */
+const refsOfLine = (l: { text: string; up?: { text: string }[]; kids?: OutlineBlock[] }, note: string) => {
+  const m = refsIn(l.text);
+  m.set(note, note);
+  for (const u of l.up ?? []) refsIn(u.text, m);
+  const under = (bs: OutlineBlock[]) => { for (const b of bs) { refsIn(b.text, m); under(b.kids); } };
+  under(l.kids ?? []);
+  return m;
+};
+
+/** The lines a filter keeps: ones whose block or path links to every page included and to none
+ *  removed. A note without lines (the page's own note, a tagged one) stays only with nothing included. */
+function filtered(r: PageResult, f: Filters): PageResult {
+  const keep = (l: BacklinkLine, note: string) => { const refs = refsOfLine(l, note); return [...f.inc.keys()].every((k) => refs.has(k)) && ![...f.rem.keys()].some((k) => refs.has(k)); };
+  const backlinks = r.backlinks.filter((b) => !b.unread).map((b) => ({ ...b, lines: b.lines.filter((l) => keep(l, b.title)) })).filter((b) => b.lines.length);
+  const none = f.inc.size > 0;
+  return { ...r, backlinks, counterparts: none ? [] : r.counterparts, tagged: none ? [] : r.tagged, fuzzy: none ? [] : r.fuzzy };
+}
+
+/** Roam's filter button and its popover: the pages the shown references link to, by how many link
+ *  to each; a click includes one, shift-click removes it, a click on a chosen one takes it off. */
+function filterButton(results: () => PageResult[], f: Filters, changed: () => void, title: string): HTMLElement {
+  const btn = h('span', { class: 'bp3-button bp3-minimal bp3-small', tabindex: '0' }, h('span', { class: 'bp3-icon bp3-icon-filter' }));
+  const wrap = h('div', { class: 'rm-reference-container dont-focus-block' },
+    h('span', { class: 'bp3-popover-wrapper' }, h('span', { 'aria-haspopup': 'true', class: 'bp3-popover-target' },
+      h('span', { class: 'bp3-popover-wrapper' }, h('span', { 'aria-haspopup': 'true', class: 'bp3-popover-target' }, btn)))));
+  let portal: HTMLElement | null = null, find = '';
+  const close = () => { portal?.remove(); portal = null; document.removeEventListener('mousedown', outside, true); document.removeEventListener('keydown', esc, true); };
+  const outside = (e: MouseEvent) => { if (portal && !portal.contains(e.target as Node) && !wrap.contains(e.target as Node)) close(); };
+  const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const button = (name: string, count: number | '', click: (e: MouseEvent) => void) =>
+    h('div', { class: 'rm-filter-button' }, h('button', { class: 'bp3-button rm-filter-button__inner', onclick: click }, name, h('sub', { class: 'rm-sub-text' }, String(count))));
+  const section = (cls: string, name: string, how: string, help: string, chosen: Map<string, string>) =>
+    h('div', { class: cls },
+      h('div', {}, h('strong', {}, name), h('span', { class: 'rm-choose-filter__add-filter-text' }, how),
+        chosen.size ? null : h('div', { class: 'rm-choose-filter__helper-text' }, help)),
+      h('div', { style: 'padding-top: 8px;' }, ...[...chosen].map(([k, t]) => button(t, '', () => { chosen.delete(k); changed(); fill(); }))));
+  const list = h('div', {});
+  const input = h('input', { placeholder: 'Search References', class: 'bp3-input bp3-minimal search-input', style: 'margin: 8px;' }) as HTMLInputElement;
+  input.addEventListener('input', () => { find = input.value.toLowerCase(); fillList(); });
+  const box = h('div', { class: 'dont-focus-block', style: 'max-width: 600px; max-height: 245px; overflow-y: scroll;' });
+  const fillList = () => {
+    const counts = new Map<string, { t: string; n: number }>();
+    const self = title;
+    for (const r of results()) for (const b of filtered(r, f).backlinks) for (const l of b.lines) {
+      for (const [k, t] of refsOfLine(l, b.title)) {
+        if (k === self || f.inc.has(k) || f.rem.has(k)) continue;
+        const c = counts.get(k); if (c) c.n++; else counts.set(k, { t, n: 1 });
+      }
+    }
+    list.replaceChildren(...[...counts].filter(([k]) => !find || k.toLowerCase().includes(find)).sort((a, b) => b[1].n - a[1].n || a[1].t.localeCompare(b[1].t))
+      .map(([k, { t, n }]) => button(t, n, (e) => { (e.shiftKey ? f.rem : f.inc).set(k, t); changed(); fill(); })));
+  };
+  const fill = () => {
+    box.replaceChildren(h('div', { class: 'rm-choose-filter' },
+      h('div', { class: 'flex-h-box' },
+        section('rm-choose-filter__includes', 'Includes', 'Click to Add', 'Only include block paths with these links in them', f.inc),
+        h('div', { class: 'rm-line', style: 'margin-top: 8px; margin-bottom: 8px;' }),
+        section('rm-choose-filter__removes', 'Removes', 'Shift-Click to Add', 'Hide blocks with these links in them, and all blocks nested below them', f.rem)),
+      h('div', { class: 'bp3-divider' }), input, list));
+    fillList();
+  };
+  btn.addEventListener('click', () => {
+    if (portal) { close(); return; }
+    fill();
+    const r = btn.getBoundingClientRect();
+    const pop = h('div', { class: 'bp3-transition-container bp3-popover-enter-done', style: 'position: fixed; z-index: 20; visibility: hidden;' },
+      h('div', { class: 'bp3-popover' }, h('div', { class: 'bp3-popover-content' }, box)));
+    portal = h('div', { class: 'bp3-portal', [ATTR]: 'filter' }, pop);
+    document.body.append(portal);
+    // above the button when there is room, as Roam opens it, else below; kept inside the window
+    const p = pop.getBoundingClientRect();
+    const top = r.top - p.height - 12 >= 0 ? r.top - p.height - 12 : r.bottom + 12;
+    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - p.width - 8, r.left + r.width / 2 - p.width / 2))}px`;
+    pop.style.top = `${top}px`;
+    pop.style.visibility = '';
+    document.addEventListener('mousedown', outside, true);
+    document.addEventListener('keydown', esc, true);
+  });
+  return wrap;
+}
+
+/** What each panel's search box holds, and for which page: drawn again, the panel keeps it. */
+const searches = new WeakMap<HTMLElement, { title: string; q: string }>();
+
+/** The notes of a result that a search finds: a linking note with the lines whose text, or the
+ *  path above them, has it (all its lines when its name has it); any other note by its name. */
+function searched(r: PageResult, q: string): PageResult {
+  const has = (s: string | undefined) => !!s && s.toLowerCase().includes(q);
+  const named = (x: { path: string; title: string }) => has(x.title) || has(x.path);
+  const backlinks: Backlink[] = [];
+  for (const b of r.backlinks) {
+    if (named(b) || b.unread) { backlinks.push(b); continue; }
+    const lines = b.lines.filter((l) => has(l.text) || (l.up ?? []).some((u) => has(u.text)));
+    if (lines.length) backlinks.push({ ...b, lines });
+  }
+  return { ...r, counterparts: r.counterparts.filter(named), backlinks: backlinks.filter((b) => !b.unread), tagged: r.tagged.filter(named), fuzzy: (r.fuzzy ?? []).filter(named) };
+}
+
+/** Roam's search box from the Linked References header: an icon that opens it, the input, and a
+ *  button that clears it. `changed` gets the text as it is typed. */
+function searchBox(q: string, changed: (q: string) => void): HTMLElement {
+  const input = h('input', { autocomplete: 'off', placeholder: 'Search References', type: 'search', class: 'rm-mentions-search__input bp3-input' }) as HTMLInputElement;
+  input.value = q;
+  const box = h('div', { class: 'rm-mentions-search bp3-input-group dont-focus-block' },
+    h('span', { class: 'rm-mentions-search__search-icon bp3-icon bp3-icon-search' }), input);
+  const clear = h('button', { class: 'bp3-button bp3-minimal bp3-small bp3-input-action', style: 'margin-right: 7px;' },
+    h('span', { class: 'bp3-icon bp3-icon-small-cross' }));
+  const show = (on: boolean) => {
+    box.classList.toggle('rm-mentions-search--showing', on); box.classList.toggle('rm-mentions-search--hidden', !on);
+    input.style.paddingLeft = on ? '' : '20px';
+    if (on && !clear.isConnected) box.append(clear); else if (!on) clear.remove();
+  };
+  show(!!q);
+  let timer = 0;
+  box.querySelector('.rm-mentions-search__search-icon')!.addEventListener('click', () => { show(true); input.focus(); });
+  input.addEventListener('focus', () => show(true));
+  input.addEventListener('blur', () => { if (!input.value) show(false); });
+  input.addEventListener('input', () => { clearTimeout(timer); timer = window.setTimeout(() => changed(input.value), 150); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { input.value = ''; changed(''); input.blur(); } });
+  clear.addEventListener('mousedown', (e) => e.preventDefault()); // keep the focus in the box
+  clear.addEventListener('click', () => { input.value = ''; clearTimeout(timer); changed(''); input.focus(); });
+  return box;
 }
 
 // ---------- counts under the page title ----------
@@ -182,10 +360,10 @@ export function drawnRows(panel: HTMLElement): number {
   return r && r.title === (panel.dataset.title ?? '') ? r.n : 0;
 }
 
-function sectionHead(label: string, open = true, tools: HTMLElement[] = []) {
+function sectionHead(label: HTMLElement, open = true, tools: HTMLElement[] = []) {
   const head = h('div', { class: 'rv-sec-head' },
     caret(open, 'rv-head-caret'),
-    h('strong', {}, label),
+    label,
     h('span', { class: 'rv-spacer' }),
     ...tools);
   // As in Roam, only the caret folds the section; the words do nothing.
@@ -202,7 +380,7 @@ function sectionHead(label: string, open = true, tools: HTMLElement[] = []) {
 
 /** Notes from every ready vault: the notes that are this page first, then notes linking here,
  *  then notes only tagged here. With more than one vault, each title starts with its vault name. */
-function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[], showVault: boolean): HTMLElement {
+function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[], showVault: boolean, find = '', filtering = false): HTMLElement {
   const out = h('div', { class: 'rv-groups rm-mentions refs-by-page-view' }); // Roam's own list classes: its style sheet lays the groups out
   /** One note: caret + (vault/)path as a namespaced title (+ tag); content shows when open. The open-in-editor button lives in the viewer. */
   const group = (v: PanelVault, key: string, path: string, title: string, defOpen: boolean, tag: string | undefined, content: () => HTMLElement, cls = '', marks: number[] = []) => {
@@ -257,7 +435,7 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
       const box = h('div', {});
       // Two links in one block are one reference, as in Roam.
       const draw = () => box.replaceChildren(...b.lines.filter((l, i) => !b.lines.slice(0, i).some((x) => (x.at ?? x.line) === (l.at ?? l.line)))
-        .map((l) => referenceEl({ text: l.text, line: l.at ?? l.line, up: l.up ?? [], kids: l.kids ?? [], cut: l.cut }, b.path, v.act)));
+        .map((l) => referenceEl({ text: l.text, line: l.at ?? l.line, up: l.up ?? [], kids: l.kids ?? [], cut: l.cut }, b.path, v.act, find || undefined, filtering)));
       draw();
       // Its lines are read before it is drawn (see `ahead`); if that failed, they are filled in here.
       if (b.unread) v.act.lines([b]).then(draw, () => {});
@@ -334,9 +512,9 @@ function marked(text: string, from: number, marks: number[]): (string | HTMLElem
 
 /** One reference: a block of a note with the blocks above it as a path. A click on a part of the
  *  path shows that block in its place, with everything under it, as in Roam. */
-function referenceEl(block: LineContext, path: string, act: SectionActions): HTMLElement {
+function referenceEl(block: LineContext, path: string, act: SectionActions, find?: string, openTop = false): HTMLElement {
   const inner = h('div', {});
-  const ctx = ctxOf(path, act);
+  const ctx = { ...ctxOf(path, act), find, openTop };
   /** `shown`: the block to draw, under the parents still shown as a path. */
   const show = (up: LineContext['up'], shown: OutlineBlock, mark?: number) => {
     const zoom = h('div', { class: 'rm-zoom zoom-mentions-view' }, ...up.map((u, i) => {
@@ -471,17 +649,34 @@ interface BlockCtx {
   mark?: number;
   /** The note is in an OKF bundle (see outlineOf). */
   okf?: boolean;
+  /** A filter is on: the reference's own children show, as Roam shows them then. */
+  openTop?: boolean;
+  /** What the section's search box holds (lower case): a block that has it shows its text as
+   *  written, the matches in yellow, as Roam shows a reference that a search found. */
+  find?: string;
+}
+
+/** A block's text as written, each match of `find` in Roam's yellow. */
+function found(el: HTMLElement, text: string, find: string) {
+  const low = text.toLowerCase();
+  let at = 0;
+  for (let i = low.indexOf(find); i >= 0; i = low.indexOf(find, at)) {
+    el.append(text.slice(at, i), h('span', { style: 'background-color: yellow;' }, text.slice(i, i + find.length)));
+    at = i + find.length;
+  }
+  el.append(text.slice(at));
 }
 
 /** A block as Roam draws one: caret (when it has children), bullet, text, and its children nested
  *  under it. */
 function blockEl(b: OutlineBlock, level: number, ctx: BlockCtx): HTMLElement {
   const text = h('span', {});
-  const heading = blockBody(text, b.text);
-  ctx.refs(text);
+  const raw = !!ctx.find && b.text.toLowerCase().includes(ctx.find);
+  const heading = raw ? (found(text, b.text, ctx.find!), 0) : blockBody(text, b.text);
+  if (!raw) ctx.refs(text);
   const has = b.kids.length > 0 || !!b.cut;
   // In Roam's Linked References a reference's children show when asked for; a note shown whole is open.
-  let open = has && !b.cut && (!!ctx.unfolded || (ctx.mark !== undefined && holds(b, ctx.mark)));
+  let open = has && !b.cut && (!!ctx.unfolded || (level === 1 && !!ctx.openTop) || (ctx.mark !== undefined && holds(b, ctx.mark)));
   const kidsBox = h('div', { class: `rm-block-children rm-block__children rm-level-${level + 1}` });
   const c = h('span', { class: `bp3-icon-standard bp3-icon-caret-down rm-caret rm-caret-hidden${has ? ' rv-kids-caret' : ''}` });
   // an item of a numbered list has its number for a bullet, as the children of a block viewed as numbered have in Roam

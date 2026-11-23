@@ -385,6 +385,67 @@ await page.waitForTimeout(500);
 await shot('14-attribute-page.png');
 compare(await measure(), 'an attribute\'s page');
 
+// ---------- the search box in the section's header ----------
+await open(PAGE);
+await page.waitForSelector('.rv-panel .rm-reference-item');
+await page.waitForTimeout(500);
+for (const root of ['.roam-article .rm-reference-container', '.roam-article .rv-panel']) {
+  await page.locator(`${root} .rm-mentions-search__search-icon`).first().click();
+  await page.keyboard.type('steam');
+}
+await page.waitForTimeout(1500);
+await page.mouse.move(5, 5);
+await shot('15-search.png');
+compare(await measure(), 'searched for "steam"');
+{
+  const heads = await page.evaluate(() => ['.roam-article .rm-reference-container', '.roam-article .rv-panel'].map((root) => {
+    const box = document.querySelector(`${root} .rm-mentions-search`), i = box.querySelector('input'), r = i.getBoundingClientRect(), cs = getComputedStyle(i);
+    return { cls: box.className.replace(/\s+/g, ' '), w: Math.round(r.width), h: Math.round(r.height), font: cs.fontSize, label: box.parentElement.querySelector('strong')?.textContent };
+  }));
+  check('the search box is Roam\'s, open, the same size', heads[0].cls === heads[1].cls && heads[0].w === heads[1].w && heads[0].h === heads[1].h && heads[0].font === heads[1].font, JSON.stringify(heads));
+  check('the header counts what the search left, as Roam\'s does', /^\d+ of \d+ linked references$/.test(heads[0].label) && heads[1].label === '1 of 3 external vault references', JSON.stringify(heads.map((x) => x.label)));
+}
+await page.locator('.roam-article .rv-panel .rm-mentions-search .bp3-input-action').click();
+await page.waitForTimeout(500);
+check('the cross clears the search', (await page.locator('.roam-article .rv-panel .rv-sec-head strong').innerText()).endsWith('External Vault References') && (await page.locator('.roam-article .rv-panel .rm-reference-item', { hasText: 'trial bake' }).count()) === 1);
+
+// ---------- the filter ----------
+await page.locator('.roam-article .rm-reference-container .rm-mentions-search .bp3-input-action').first().click();
+await page.mouse.click(5, 500);
+await page.waitForTimeout(800);
+const filterList = async (ours) => {
+  await page.locator(`.roam-article ${ours ? '.rv-panel' : '.rm-reference-container'} .bp3-icon-filter`).first().click();
+  await page.waitForTimeout(800);
+  const sel = ours ? '.bp3-portal[data-roam-vaults] .rm-choose-filter' : '.bp3-portal:not([data-roam-vaults]) .rm-choose-filter';
+  const names = await page.locator(`${sel} .rm-filter-button button`).allInnerTexts();
+  return { sel, names: names.map((t) => t.replace(/\s+/g, ' ').trim()) };
+};
+{
+  const roam = await filterList(false);
+  await page.keyboard.press('Escape'); await page.mouse.click(5, 500); await page.waitForTimeout(400);
+  const ours = await filterList(true);
+  // Roam's own "All Daily Notes" groups its daily pages: a vault has none. The order among equal counts is Roam's own.
+  const set = (a) => JSON.stringify(a.filter((t) => !t.startsWith('All Daily Notes')).sort());
+  check('the filter lists the pages the references link to, counted as Roam counts them', set(roam.names) === set(ours.names), `\n  roam  ${roam.names.join(' | ')}\n  vault ${ours.names.join(' | ')}`);
+  await shot('16-filter.png', '.bp3-portal[data-roam-vaults] .bp3-popover');
+  await page.locator(`${ours.sel} .rm-filter-button button`, { hasText: 'Harbour Cafe' }).first().click();
+  await page.keyboard.press('Escape'); await page.mouse.click(5, 500); await page.waitForTimeout(400);
+  await filterList(false);
+  await page.locator(`${roam.sel} .rm-filter-button button`, { hasText: 'Harbour Cafe' }).first().click();
+  await page.keyboard.press('Escape'); await page.mouse.click(5, 500); await page.waitForTimeout(1000);
+  await shot('17-filtered.png');
+  compare(await measure(), 'filtered to Harbour Cafe');
+  const labels = await page.evaluate(() => [document.querySelector('.roam-article .rm-reference-container strong')?.textContent, document.querySelector('.roam-article .rv-panel .rv-sec-head strong')?.textContent]);
+  check('the header counts what the filter left, and the icon turns red', /^1 of \d+ linked references$/.test(labels[0]) && labels[1] === '1 of 3 external vault references'
+    && await page.evaluate(() => getComputedStyle(document.querySelector('.roam-article .rv-panel .bp3-icon-filter')).color === getComputedStyle(document.querySelector('.roam-article .rm-reference-container .bp3-icon-filter')).color), JSON.stringify(labels));
+  // take it off again, in both
+  for (const ours of [false, true]) {
+    const { sel } = await filterList(ours);
+    await page.locator(`${sel} .rm-choose-filter__includes .rm-filter-button button`).first().click();
+    await page.keyboard.press('Escape'); await page.mouse.click(5, 500); await page.waitForTimeout(400);
+  }
+}
+
 // ---------- an OKF bundle ----------
 await open('Supplier');
 await page.waitForSelector('.rv-panel .rv-group-title');

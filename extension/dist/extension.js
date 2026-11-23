@@ -1038,23 +1038,277 @@ function renderPanel(el2, vaults2) {
   const ready = [];
   let n = 0;
   for (const v of vaults2) {
-    const s = v.state;
-    if (s.kind !== "ready" || !s.result) continue;
-    ready.push({ v, r: s.result });
-    n += new Set([...s.result.counterparts, ...s.result.backlinks, ...s.result.tagged, ...s.result.fuzzy ?? []].map((x) => x.path)).size;
+    const s2 = v.state;
+    if (s2.kind !== "ready" || !s2.result) continue;
+    ready.push({ v, r: s2.result });
+    n += new Set([...s2.result.counterparts, ...s2.result.backlinks, ...s2.result.tagged, ...s2.result.fuzzy ?? []].map((x) => x.path)).size;
   }
   if (!n) {
     el2.replaceChildren();
     return 0;
   }
   const collapsed = isCollapsed();
+  const title = el2.dataset.title ?? "";
+  const s = searches.get(el2);
+  let q = s && s.title === title ? s.q : "";
+  const label = h("strong", {});
+  const body = h("div", { class: "rv-sec-body" });
+  let drawn = 0;
+  const f = filtersOf(title);
+  const filter = filterButton(() => ready.map(({ r }) => q ? searched(r, q) : r), f, () => draw(), title);
+  const draw = () => {
+    const seq = ++drawn;
+    let shown2 = q ? ready.map(({ v, r }) => ({ v, r: searched(r, q) })) : ready;
+    const filtering = f.inc.size + f.rem.size > 0;
+    if (filtering) shown2 = shown2.map(({ v, r }) => ({ v, r: filtered(r, f) }));
+    const narrowed = !!q || filtering;
+    const m = narrowed ? shown2.reduce((k, { r }) => k + new Set([...r.counterparts, ...r.backlinks, ...r.tagged, ...r.fuzzy ?? []].map((x) => x.path)).size, 0) : n;
+    label.textContent = narrowed ? `${m} of ${n} external vault references` : `${n} External Vault References`;
+    filter.querySelector(".bp3-icon-filter").style.color = filtering ? "rgb(168, 42, 42)" : "";
+    body.replaceChildren(resultBody(el2, shown2, vaults2.length > 1, q, filtering));
+    if (!narrowed) return;
+    const unread = ready.map(({ v, r }) => ({ v, notes: r.backlinks.filter((b) => b.unread) })).filter((u) => u.notes.length);
+    if (unread.length) Promise.all(unread.map(({ v, notes }) => v.act.lines(notes).catch(() => {
+    }))).then(() => {
+      if (seq === drawn && el2.isConnected) draw();
+    });
+  };
+  const search = searchBox(q, (now) => {
+    q = now.trim().toLowerCase();
+    searches.set(el2, { title, q });
+    draw();
+  });
+  const typing = document.activeElement instanceof HTMLInputElement && el2.contains(document.activeElement);
   el2.replaceChildren(h(
     "div",
     { class: "rv-sec" + (collapsed ? " rv-collapsed" : "") },
-    sectionHead(`${n} External Vault References`, !collapsed),
-    h("div", { class: "rv-sec-body" }, resultBody(el2, ready, vaults2.length > 1))
+    sectionHead(label, !collapsed, [search, filter]),
+    body
   ));
+  if (typing) {
+    const i = search.querySelector("input");
+    i.focus();
+    i.setSelectionRange(i.value.length, i.value.length);
+  }
+  draw();
   return n;
+}
+var pageFilters = /* @__PURE__ */ new Map();
+function filtersOf(title) {
+  let f = pageFilters.get(title);
+  if (!f) {
+    pageFilters.set(title, f = { inc: /* @__PURE__ */ new Map(), rem: /* @__PURE__ */ new Map() });
+    if (pageFilters.size > 200) pageFilters.delete(pageFilters.keys().next().value);
+  }
+  return f;
+}
+function refsIn(text, into = /* @__PURE__ */ new Map()) {
+  const add = (name) => {
+    const t = name.split("|")[0].split("#")[0].trim();
+    if (t) into.set(t, t);
+  };
+  for (const m of text.matchAll(/\[\[([^[\]]+)\]\]/g)) add(m[1]);
+  for (const m of text.matchAll(/(?:^|\s)#([\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/gu)) add(m[1]);
+  const attr = /^([^:`[\]{}()#\n][^:`{}\n]{0,80}?)::(?=\s|$)/.exec(text);
+  if (attr) add(attr[1]);
+  return into;
+}
+var refsOfLine = (l, note) => {
+  const m = refsIn(l.text);
+  m.set(note, note);
+  for (const u of l.up ?? []) refsIn(u.text, m);
+  const under = (bs) => {
+    for (const b of bs) {
+      refsIn(b.text, m);
+      under(b.kids);
+    }
+  };
+  under(l.kids ?? []);
+  return m;
+};
+function filtered(r, f) {
+  const keep = (l, note) => {
+    const refs = refsOfLine(l, note);
+    return [...f.inc.keys()].every((k) => refs.has(k)) && ![...f.rem.keys()].some((k) => refs.has(k));
+  };
+  const backlinks = r.backlinks.filter((b) => !b.unread).map((b) => ({ ...b, lines: b.lines.filter((l) => keep(l, b.title)) })).filter((b) => b.lines.length);
+  const none = f.inc.size > 0;
+  return { ...r, backlinks, counterparts: none ? [] : r.counterparts, tagged: none ? [] : r.tagged, fuzzy: none ? [] : r.fuzzy };
+}
+function filterButton(results, f, changed2, title) {
+  const btn = h("span", { class: "bp3-button bp3-minimal bp3-small", tabindex: "0" }, h("span", { class: "bp3-icon bp3-icon-filter" }));
+  const wrap = h(
+    "div",
+    { class: "rm-reference-container dont-focus-block" },
+    h("span", { class: "bp3-popover-wrapper" }, h(
+      "span",
+      { "aria-haspopup": "true", class: "bp3-popover-target" },
+      h("span", { class: "bp3-popover-wrapper" }, h("span", { "aria-haspopup": "true", class: "bp3-popover-target" }, btn))
+    ))
+  );
+  let portal = null, find = "";
+  const close = () => {
+    portal?.remove();
+    portal = null;
+    document.removeEventListener("mousedown", outside, true);
+    document.removeEventListener("keydown", esc, true);
+  };
+  const outside = (e) => {
+    if (portal && !portal.contains(e.target) && !wrap.contains(e.target)) close();
+  };
+  const esc = (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      close();
+    }
+  };
+  const button = (name, count2, click) => h("div", { class: "rm-filter-button" }, h("button", { class: "bp3-button rm-filter-button__inner", onclick: click }, name, h("sub", { class: "rm-sub-text" }, String(count2))));
+  const section = (cls, name, how, help, chosen) => h(
+    "div",
+    { class: cls },
+    h(
+      "div",
+      {},
+      h("strong", {}, name),
+      h("span", { class: "rm-choose-filter__add-filter-text" }, how),
+      chosen.size ? null : h("div", { class: "rm-choose-filter__helper-text" }, help)
+    ),
+    h("div", { style: "padding-top: 8px;" }, ...[...chosen].map(([k, t]) => button(t, "", () => {
+      chosen.delete(k);
+      changed2();
+      fill4();
+    })))
+  );
+  const list = h("div", {});
+  const input = h("input", { placeholder: "Search References", class: "bp3-input bp3-minimal search-input", style: "margin: 8px;" });
+  input.addEventListener("input", () => {
+    find = input.value.toLowerCase();
+    fillList();
+  });
+  const box = h("div", { class: "dont-focus-block", style: "max-width: 600px; max-height: 245px; overflow-y: scroll;" });
+  const fillList = () => {
+    const counts = /* @__PURE__ */ new Map();
+    const self = title;
+    for (const r of results()) for (const b of filtered(r, f).backlinks) for (const l of b.lines) {
+      for (const [k, t] of refsOfLine(l, b.title)) {
+        if (k === self || f.inc.has(k) || f.rem.has(k)) continue;
+        const c = counts.get(k);
+        if (c) c.n++;
+        else counts.set(k, { t, n: 1 });
+      }
+    }
+    list.replaceChildren(...[...counts].filter(([k]) => !find || k.toLowerCase().includes(find)).sort((a, b) => b[1].n - a[1].n || a[1].t.localeCompare(b[1].t)).map(([k, { t, n }]) => button(t, n, (e) => {
+      (e.shiftKey ? f.rem : f.inc).set(k, t);
+      changed2();
+      fill4();
+    })));
+  };
+  const fill4 = () => {
+    box.replaceChildren(h(
+      "div",
+      { class: "rm-choose-filter" },
+      h(
+        "div",
+        { class: "flex-h-box" },
+        section("rm-choose-filter__includes", "Includes", "Click to Add", "Only include block paths with these links in them", f.inc),
+        h("div", { class: "rm-line", style: "margin-top: 8px; margin-bottom: 8px;" }),
+        section("rm-choose-filter__removes", "Removes", "Shift-Click to Add", "Hide blocks with these links in them, and all blocks nested below them", f.rem)
+      ),
+      h("div", { class: "bp3-divider" }),
+      input,
+      list
+    ));
+    fillList();
+  };
+  btn.addEventListener("click", () => {
+    if (portal) {
+      close();
+      return;
+    }
+    fill4();
+    const r = btn.getBoundingClientRect();
+    const pop = h(
+      "div",
+      { class: "bp3-transition-container bp3-popover-enter-done", style: "position: fixed; z-index: 20; visibility: hidden;" },
+      h("div", { class: "bp3-popover" }, h("div", { class: "bp3-popover-content" }, box))
+    );
+    portal = h("div", { class: "bp3-portal", [ATTR]: "filter" }, pop);
+    document.body.append(portal);
+    const p = pop.getBoundingClientRect();
+    const top = r.top - p.height - 12 >= 0 ? r.top - p.height - 12 : r.bottom + 12;
+    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - p.width - 8, r.left + r.width / 2 - p.width / 2))}px`;
+    pop.style.top = `${top}px`;
+    pop.style.visibility = "";
+    document.addEventListener("mousedown", outside, true);
+    document.addEventListener("keydown", esc, true);
+  });
+  return wrap;
+}
+var searches = /* @__PURE__ */ new WeakMap();
+function searched(r, q) {
+  const has = (s) => !!s && s.toLowerCase().includes(q);
+  const named = (x) => has(x.title) || has(x.path);
+  const backlinks = [];
+  for (const b of r.backlinks) {
+    if (named(b) || b.unread) {
+      backlinks.push(b);
+      continue;
+    }
+    const lines = b.lines.filter((l) => has(l.text) || (l.up ?? []).some((u) => has(u.text)));
+    if (lines.length) backlinks.push({ ...b, lines });
+  }
+  return { ...r, counterparts: r.counterparts.filter(named), backlinks: backlinks.filter((b) => !b.unread), tagged: r.tagged.filter(named), fuzzy: (r.fuzzy ?? []).filter(named) };
+}
+function searchBox(q, changed2) {
+  const input = h("input", { autocomplete: "off", placeholder: "Search References", type: "search", class: "rm-mentions-search__input bp3-input" });
+  input.value = q;
+  const box = h(
+    "div",
+    { class: "rm-mentions-search bp3-input-group dont-focus-block" },
+    h("span", { class: "rm-mentions-search__search-icon bp3-icon bp3-icon-search" }),
+    input
+  );
+  const clear = h(
+    "button",
+    { class: "bp3-button bp3-minimal bp3-small bp3-input-action", style: "margin-right: 7px;" },
+    h("span", { class: "bp3-icon bp3-icon-small-cross" })
+  );
+  const show = (on) => {
+    box.classList.toggle("rm-mentions-search--showing", on);
+    box.classList.toggle("rm-mentions-search--hidden", !on);
+    input.style.paddingLeft = on ? "" : "20px";
+    if (on && !clear.isConnected) box.append(clear);
+    else if (!on) clear.remove();
+  };
+  show(!!q);
+  let timer = 0;
+  box.querySelector(".rm-mentions-search__search-icon").addEventListener("click", () => {
+    show(true);
+    input.focus();
+  });
+  input.addEventListener("focus", () => show(true));
+  input.addEventListener("blur", () => {
+    if (!input.value) show(false);
+  });
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = window.setTimeout(() => changed2(input.value), 150);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      input.value = "";
+      changed2("");
+      input.blur();
+    }
+  });
+  clear.addEventListener("mousedown", (e) => e.preventDefault());
+  clear.addEventListener("click", () => {
+    input.value = "";
+    clearTimeout(timer);
+    changed2("");
+    input.focus();
+  });
+  return box;
 }
 function renderCounts(el2, counts) {
   const key = counts.map((c) => c.label).join("\n");
@@ -1075,7 +1329,7 @@ function sectionHead(label, open4 = true, tools = []) {
     "div",
     { class: "rv-sec-head" },
     caret(open4, "rv-head-caret"),
-    h("strong", {}, label),
+    label,
     h("span", { class: "rv-spacer" }),
     ...tools
   );
@@ -1092,7 +1346,7 @@ function sectionHead(label, open4 = true, tools = []) {
   });
   return head;
 }
-function resultBody(panel, list, showVault) {
+function resultBody(panel, list, showVault, find = "", filtering = false) {
   const out = h("div", { class: "rv-groups rm-mentions refs-by-page-view" });
   const group = (v, key, path, title2, defOpen, tag2, content, cls = "", marks = []) => {
     const k = `${v.id}
@@ -1163,7 +1417,7 @@ ${path}`;
     if (b.unread) unread.set(rows2.length, { v, b });
     rows2.push(() => group(v, "links", b.path, b.title, true, tag2, () => {
       const box = h("div", {});
-      const draw = () => box.replaceChildren(...b.lines.filter((l, i) => !b.lines.slice(0, i).some((x) => (x.at ?? x.line) === (l.at ?? l.line))).map((l) => referenceEl({ text: l.text, line: l.at ?? l.line, up: l.up ?? [], kids: l.kids ?? [], cut: l.cut }, b.path, v.act)));
+      const draw = () => box.replaceChildren(...b.lines.filter((l, i) => !b.lines.slice(0, i).some((x) => (x.at ?? x.line) === (l.at ?? l.line))).map((l) => referenceEl({ text: l.text, line: l.at ?? l.line, up: l.up ?? [], kids: l.kids ?? [], cut: l.cut }, b.path, v.act, find || void 0, filtering)));
       draw();
       if (b.unread) v.act.lines([b]).then(draw, () => {
       });
@@ -1240,9 +1494,9 @@ function marked(text, from, marks) {
   out.push(text.slice(at));
   return out;
 }
-function referenceEl(block, path, act) {
+function referenceEl(block, path, act, find, openTop = false) {
   const inner = h("div", {});
-  const ctx = ctxOf(path, act);
+  const ctx = { ...ctxOf(path, act), find, openTop };
   const show = (up, shown2, mark) => {
     const zoom = h("div", { class: "rm-zoom zoom-mentions-view" }, ...up.map((u, i) => {
       const text = h("span", {});
@@ -1264,16 +1518,16 @@ function referenceEl(block, path, act) {
       return;
     }
     const whole = outlineOf(text, act.okf(path));
-    const find = (blocks, line) => {
+    const find2 = (blocks, line) => {
       for (const b of blocks) {
         if (b.line === line) return b;
-        const k = find(b.kids, line);
+        const k = find2(b.kids, line);
         if (k) return k;
       }
       return null;
     };
     const last = block.up.length - 1;
-    let shown2 = find(whole, block.up[last].line) ?? { text: block.up[last].text, line: block.up[last].line, kids: [block] };
+    let shown2 = find2(whole, block.up[last].line) ?? { text: block.up[last].text, line: block.up[last].line, kids: [block] };
     for (let k = last - 1; k >= i; k--) shown2 = { text: block.up[k].text, line: block.up[k].line, kids: [shown2] };
     show(block.up.slice(0, i), shown2, block.line);
   };
@@ -1396,12 +1650,22 @@ async function embed(ph, from, act, depth) {
     )
   ));
 }
+function found(el2, text, find) {
+  const low = text.toLowerCase();
+  let at = 0;
+  for (let i = low.indexOf(find); i >= 0; i = low.indexOf(find, at)) {
+    el2.append(text.slice(at, i), h("span", { style: "background-color: yellow;" }, text.slice(i, i + find.length)));
+    at = i + find.length;
+  }
+  el2.append(text.slice(at));
+}
 function blockEl(b, level, ctx) {
   const text = h("span", {});
-  const heading = blockBody(text, b.text);
-  ctx.refs(text);
+  const raw = !!ctx.find && b.text.toLowerCase().includes(ctx.find);
+  const heading = raw ? (found(text, b.text, ctx.find), 0) : blockBody(text, b.text);
+  if (!raw) ctx.refs(text);
   const has = b.kids.length > 0 || !!b.cut;
-  let open4 = has && !b.cut && (!!ctx.unfolded || ctx.mark !== void 0 && holds(b, ctx.mark));
+  let open4 = has && !b.cut && (!!ctx.unfolded || level === 1 && !!ctx.openTop || ctx.mark !== void 0 && holds(b, ctx.mark));
   const kidsBox = h("div", { class: `rm-block-children rm-block__children rm-level-${level + 1}` });
   const c = h("span", { class: `bp3-icon-standard bp3-icon-caret-down rm-caret rm-caret-hidden${has ? " rv-kids-caret" : ""}` });
   const bullet = h(
@@ -1498,11 +1762,11 @@ function linkClick(e, from, act, noteFirst = false) {
       return false;
     }
   };
-  if (sub || !target) note().then((found) => {
-    if (!found && !(target && page())) a.classList.add("rv-missing");
+  if (sub || !target) note().then((found2) => {
+    if (!found2 && !(target && page())) a.classList.add("rv-missing");
   });
-  else if (noteFirst) note().then((found) => {
-    if (!found && !page()) a.classList.add("rv-missing");
+  else if (noteFirst) note().then((found2) => {
+    if (!found2 && !page()) a.classList.add("rv-missing");
   });
   else if (!page()) note();
   return true;
