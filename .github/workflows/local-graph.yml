@@ -1,0 +1,91 @@
+# Runs the Real Roam checks (extension/test/real-roam/run.mjs) in a local graph instead of the hosted
+# test graph: a new one made for the run by going to #/offline/<name>. Needs the test account to have a
+# plan (it is read-only otherwise). Results are in the log and the run's artifact.
+name: Local graph
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - .github/workflows/local-graph.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-roam
+  cancel-in-progress: false
+
+jobs:
+  local-graph:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ROAM_VERSION: 0.0.42
+      ROAM_DEB_SHA512: x9Ln56V7TlDO6zDcXK0AKDeAmz5LSX1oWpKbV6w7CUzbMc/LESJ7qLQs0Ap/nPpwPCf7jUypd0LS05SsJbD/HA==
+      OUT: ${{ github.workspace }}/local-graph-out
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Build the extension
+        working-directory: extension
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Cache the Roam installer
+        uses: actions/cache@v4
+        with:
+          path: ~/roam-deb
+          key: roam-deb-${{ env.ROAM_VERSION }}
+
+      - name: Install Roam, Xvfb and Playwright
+        run: |
+          mkdir -p ~/roam-deb
+          deb=~/roam-deb/roam-research_${ROAM_VERSION}_amd64.deb
+          [ -f "$deb" ] || curl -fsSL -o "$deb" "https://roam-electron-deploy.s3.us-east-2.amazonaws.com/roam-research_${ROAM_VERSION}_amd64.deb"
+          echo "$(echo "$ROAM_DEB_SHA512" | base64 -d | od -An -v -tx1 | tr -d ' \n')  $deb" | sha512sum -c -
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "$deb" xvfb tesseract-ocr
+          npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/pw" playwright-core@1.63.0
+
+      - name: Run the extension in real Roam, in a local graph
+        working-directory: extension
+        env:
+          ROAM_EMAIL: ${{ secrets.ROAM_EMAIL }}
+          ROAM_PASSWORD: ${{ secrets.ROAM_PASSWORD }}
+          ROAM_GRAPH: offline/vaults-local-${{ github.run_id }}
+          NOTES: '20000'
+        run: |
+          Xvfb :99 -screen 0 1440x900x24 >/dev/null 2>&1 &
+          export DISPLAY=:99
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node test/real-roam/run.mjs
+
+      - name: Summary
+        if: always()
+        run: '[ -f "$OUT/RESULTS.md" ] && cat "$OUT/RESULTS.md" >> "$GITHUB_STEP_SUMMARY" || true'
+
+      - name: Keep no picture that shows an @
+        if: always()
+        run: |
+          for f in "$OUT"/*.png; do
+            [ -f "$f" ] || continue
+            if tesseract "$f" - 2>/dev/null | grep -q '@'; then echo "dropped $(basename "$f"): it shows an @"; rm "$f"; fi
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-graph-results
+          path: local-graph-out/
+          if-no-files-found: ignore
+          retention-days: 7
