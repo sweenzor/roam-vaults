@@ -2,6 +2,9 @@
 
 ## 0.3.0 (unreleased)
 
+- The README has a section and a picture, taken in real Roam, for embeds and block links, property pages,
+  OKF bundles, and the section's search and filter.
+
 - External Vault References are drawn like Roam's Linked References. A line that links to the page is a
   Roam block with the headings and list items it sits under as a path above it; click a part of the path
   to open it in place, and click a line's caret to show the items nested under it. A note unfolded on the
