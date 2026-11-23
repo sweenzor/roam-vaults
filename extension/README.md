@@ -4,7 +4,7 @@
 
 See notes from your Obsidian-style vaults in your Roam graph.
 
-![External Vault References on a Roam page, listing notes from two vaults below Linked References](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/one-section.png)
+![External Vault References on a Roam page, listing notes from two vaults below Linked References](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/one-section.png)
 
 </div>
 
@@ -47,11 +47,11 @@ frontmatter, as the spec asks bundles to have:
 Here a bundle of seed suppliers sits in a garden vault. The page **Supplier** lists the bundle's notes of
 that type, each by its title:
 
-![The page Supplier, listing an OKF note by its title, with its type drawn as a page reference](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/okf-type-page.png)
+![The page Supplier, listing an OKF note by its title, with its type drawn as a page reference](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/okf-type-page.png)
 
 Click the title to open the note under its OKF name, with its `type` and `status` as page references:
 
-![An OKF note open in Roam's main window under its title, Heritage Seed Company](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/okf-note.png)
+![An OKF note open in Roam's main window under its title, Heritage Seed Company](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/okf-note.png)
 
 </details>
 
@@ -77,7 +77,7 @@ kinds of notes, in this order:
   folded, with the letters that differ highlighted. Every word must start with the same letter and keep its
   numbers, so `Q3 Plan` never matches `Q4 Plan`, and titles under five letters don't get them.
 
-![The note that is the page, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/unfolded-note.png)
+![The note that is the page, unfolded in place](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/unfolded-note.png)
 
 ### Notes look like Roam blocks
 
@@ -104,7 +104,7 @@ is drawn as in Linked References, and works the same way:
   property's name is a page too, as an attribute's is in Roam: the page **author** lists the notes with an
   `author` property.
 
-![A line from a nested list, with its path above it and the items under it opened](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/nested-line.png)
+![A line from a nested list, with its path above it and the items under it opened](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/nested-line.png)
 
 Notes exported from Roam as Markdown come out with the same blocks, paths and links they had in Roam.
 
@@ -113,36 +113,36 @@ Notes exported from Roam as Markdown come out with the same blocks, paths and li
 An embedded block, a link to a block and an embedded heading, each as Roam draws its own. The block ids
 (`^seaweed`) are hidden, as in Obsidian:
 
-![A block embed, a block reference and a heading embed from vault notes, on the page Greenhouse](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/embeds.png)
+![A block embed, a block reference and a heading embed from vault notes, on the page Greenhouse](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/embeds.png)
 
 ### Properties are pages
 
 A frontmatter property's name is a page, as an attribute's is in Roam. The page **sunlight** lists every
 note with a `sunlight` property, each drawn as the attribute block:
 
-![The page sunlight, listing two notes with a sunlight property as attribute blocks](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/property-page.png)
+![The page sunlight, listing two notes with a sunlight property as attribute blocks](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/property-page.png)
 
 Click a note title or a line's bullet to open the whole note in Roam's main window, as a page opens. Back
 returns to where you were, and links between notes work inside it. Shift-click opens the note over the page
 instead. If you use Obsidian, click **Open in Obsidian** beside the note's title to jump to the note there. To use another
 editor, see [Opening notes in another editor](#opening-notes-in-another-editor).
 
-![A note in the main window, opened from a line, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/note-viewer.png)
+![A note in the main window, opened from a line, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/note-viewer.png)
 
 ### Search and filter
 
 The section's header has the same search box and filter as Linked References. Search narrows the lines to
 those with the words you type, and marks them as Roam marks its own:
 
-![The section searched for "bed", its header counting the lines left](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/search.png)
+![The section searched for "bed", its header counting the lines left](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/search.png)
 
 The filter lists the pages the lines link to, with how many lines link to each. Click one to keep only the
 lines that link to it, or shift-click to hide them. The filter icon turns red while a filter is on, and the
 filter stays with the page while Roam is open.
 
-![The filter open on the section, listing the pages its lines link to](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/filter.png)
+![The filter open on the section, listing the pages its lines link to](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/filter.png)
 
-![The section filtered to the lines that link to Blight](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/filtered.png)
+![The section filtered to the lines that link to Blight](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/filtered.png)
 
 ### Notes with a similar name
 
@@ -150,7 +150,7 @@ When no note is named after the page, the section suggests notes whose name is c
 another spelling doesn't hide a note. Here the page is **Fertiliser schedule** and the note is
 `Soil/Fertilizer schedule`:
 
-![A note with a similar name, faded, with the letter that differs highlighted](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/similar-name.png)
+![A note with a similar name, faded, with the letter that differs highlighted](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/similar-name.png)
 
 The section updates by itself. When you edit a note in Obsidian or any other editor, the change shows up in Roam within about a
 second.
@@ -169,7 +169,7 @@ second.
 2. Open **Settings → Roam Depot → Vaults**.
 3. Click **Add vault folder**, choose your vault folder, and allow access when asked.
 
-![The Vaults settings tab, with two vaults, the Reference counts switch and the Open notes with field](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/settings.png)
+![The Vaults settings tab, with two vaults, the Reference counts switch and the Open notes with field](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/settings.png)
 
 Matching notes then show up below Linked References, as **"External Vault References"**. The
 section appears only on pages that have matching vault notes. Other pages look exactly as before. The first
@@ -195,7 +195,7 @@ Everything is in **Settings → Roam Depot → Vaults**:
 - **Rescan** reads every vault again, except one whose last scan didn't finish. Only changed files are parsed.
 - **Reference counts** turns on the line of counts under each page title (see below). It's off until you turn it on.
 
-![A vault part way through a scan, with a progress bar in its row](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/scan-progress.png)
+![A vault part way through a scan, with a progress bar in its row](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/scan-progress.png)
 
 Vaults adds no commands to the command palette.
 
@@ -205,7 +205,7 @@ On a page with a lot of references, the vault notes are far down. Turn on **Refe
 **Settings → Roam Depot → Vaults** to see, under each page title, how many Linked, Unlinked and External Vault
 References the page has. Click a count to jump to that section.
 
-![The counts of Linked, Unlinked and External Vault References under a page title](https://raw.githubusercontent.com/sweenzor/roam-vaults/de09462c37fa525b33e0296d18a5abb4d018fcd9/docs/images/reference-counts.png)
+![The counts of Linked, Unlinked and External Vault References under a page title](https://raw.githubusercontent.com/sweenzor/roam-vaults/3f53ab81eddfb7dde53776b7678dbd54a9a81e37/docs/images/reference-counts.png)
 
 A count of zero is left out. Unlinked references are counted the way Roam counts them when you open that
 section: blocks that mention the page's title without linking to it.
