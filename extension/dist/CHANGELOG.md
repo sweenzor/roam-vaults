@@ -43,6 +43,9 @@
 - A note opens in Roam's main window, drawn as a page: its name as the title and its outline under it. Back
   and Forward work as they do between pages. Shift-click opens it over the page instead (Roam's sidebar
   takes no windows from an extension).
+- OKF bundles are found by the `okf_version` in their `index.md`. In a bundle a note is named by its
+  `title`, `type` and `status` are page references (the page **Metric** lists the notes of that type),
+  and a link is read from the note's own folder first and, when it starts with `/`, from the bundle's.
 
 ## 0.2.0 (2026-11-22)
 

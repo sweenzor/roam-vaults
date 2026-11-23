@@ -4,7 +4,7 @@
 // notes that link to it. Links are resolved when a page asks for them, not ahead of time: a
 // record per link, each in two or three lookup sets, cost several times more memory than the
 // rest of the index together, and had to be re-resolved whenever a file came or went.
-import type { Note, ParsedNote } from './types.ts';
+import { F_OKF, type Note, type ParsedNote } from './types.ts';
 
 export interface LinkHit {
   src: string;            // the note the link is in
@@ -44,14 +44,24 @@ function joinRel(dir: string, rel: string): string | null {
 /** Reduce a parsed note to what the index keeps. */
 export function toNote(p: ParsedNote, size = 0, mtime = 0): Note {
   const links: (string | number)[] = [];
-  for (const l of p.links) if (l.target !== '') links.push(l.target, l.line * 2 + (l.embed ? 1 : 0));
+  for (const l of p.links) if (l.target !== '') links.push(l.target, l.flags & F_OKF ? -1 - l.line : l.line * 2 + (l.embed ? 1 : 0));
   // slice(): an array that grew by push keeps room for more, and there is one of these per note
-  return {
+  const note: Note = {
     path: p.path, size, mtime,
     aliases: p.aliases.length ? p.aliases.slice() : NONE,
     tags: p.tags.length ? p.tags.slice() : NONE,
     links: links.length ? links.slice() : NONE,
   };
+  const title = titleOf(p.props);
+  if (title) note.title = title;
+  if (/(^|\/)index\.md$/i.test(p.path) && p.props?.okf_version) note.root = true;
+  return note;
+}
+
+/** A note's frontmatter `title`, unquoted. */
+export function titleOf(props: Record<string, string | string[]> | null): string {
+  const t = props && typeof props.title === 'string' ? props.title : '';
+  return t.trim().replace(/^(["'])(.*)\1$/, '$2').trim().normalize('NFC');
 }
 
 export interface Stamp { size: number; mtime: number }
@@ -70,6 +80,28 @@ export class VaultIndex {
   listeners: FileListener[] = [];
   /** Tie-break duplicates by shared folder prefix with the linking note (not Obsidian behaviour; see report). */
   preferNearby = false;
+
+  constructor() {
+    // A file named index.md came, went or changed: the bundles are worked out again when asked.
+    this.listeners.push((p) => { if (/(^|\/)index\.md$/i.test(p)) this.roots = null; });
+  }
+
+  // ---------- OKF bundles ----------
+  /** The folders that are an OKF bundle's root (an index.md there says okf_version), deepest first;
+   *  '' is the vault's own folder. Null: not worked out since an index.md last changed. */
+  protected roots: string[] | null = null;
+  bundleRoots(): string[] {
+    if (!this.roots) {
+      this.roots = this.pathsNamed('index').filter((p) => /(^|\/)index\.md$/i.test(p) && this.note(p)?.root).map(dirOf)
+        .sort((a, b) => b.length - a.length);
+    }
+    return this.roots;
+  }
+  /** The root of the OKF bundle a file is in, or null when it is in none. */
+  bundleOf(path: string): string | null {
+    for (const r of this.bundleRoots()) if (r === '' || path.startsWith(r + '/')) return r;
+    return null;
+  }
 
   // ---------- file registry ----------
   protected register(path: string): string {
@@ -95,6 +127,17 @@ export class VaultIndex {
   candidates(target: string, src: string): string[] {
     if (target === '') return [src];
     let t = target.normalize('NFC');
+    // In an OKF bundle a path is read from the linking file's folder, or from the bundle's root when
+    // it starts with '/'. What it names is taken first; if there is nothing there, as a vault reads it.
+    const root = this.roots?.length === 0 ? null : this.bundleOf(src);
+    if (root !== null && !t.startsWith('./') && !t.startsWith('../')) {
+      const j = t.startsWith('/') ? joinRel(root, t) : joinRel(dirOf(src), t);
+      if (j) {
+        const key = linkKey(j);
+        const hit = this.pathsNamed(baseOf(key)).filter((p) => fileKeyPath(p) === key);
+        if (hit.length) return hit.slice();
+      }
+    }
     if (t.startsWith('./') || t.startsWith('../')) {
       const j = joinRel(dirOf(src), t);
       if (j === null) return [];
@@ -152,19 +195,22 @@ export class VaultIndex {
         const mk = `${dirOf(src)}\n${target}`;
         let to = memo.get(mk);
         if (to === undefined) memo.set(mk, to = this.candidates(target, src)[0] ?? null);
-        if (to === null || to === src || !want.has(to)) return;
-        out.push({ src, line: where >> 1, embed: (where & 1) === 1, resolved: to });
+        if (to === null || to === src || !want.has(to) || !this.counts(where, src)) return;
+        out.push({ src, line: lineOf(where), embed: where > 0 && (where & 1) === 1, resolved: to });
       });
     }
     return out;
   }
 
+  /** Does a link count? One that only an OKF bundle has (a type or status) counts in a bundle. */
+  private counts(where: number, src: string): boolean { return where >= 0 || this.bundleOf(src) !== null; }
+
   /** Links written as this text (a linkKey) that resolve to no file. */
   unresolved(key: string): LinkHit[] {
     const out: LinkHit[] = [];
     this.eachLinker(baseOf(key), (src, target, where) => {
-      if (this.keyOf(target, src) !== key || this.candidates(target, src).length) return;
-      out.push({ src, line: where >> 1, embed: (where & 1) === 1, resolved: null });
+      if (this.keyOf(target, src) !== key || !this.counts(where, src) || this.candidates(target, src).length) return;
+      out.push({ src, line: lineOf(where), embed: where > 0 && (where & 1) === 1, resolved: null });
     });
     return out;
   }
@@ -280,6 +326,7 @@ export class VaultIndex {
 
   // ---------- public API ----------
   build(notes: Note[], attachments: string[]) {
+    this.roots = null;
     for (const p of attachments) this.register(p);
     for (const n of notes) { this.register(n.path); this.notes.set(n.path, n); }
     for (const n of notes) this.addContrib(n);
@@ -311,6 +358,8 @@ export class VaultIndex {
 }
 
 const depth = (p: string) => p.split('/').length;
+/** The line a link is on, from where it is (see Note.links). */
+const lineOf = (where: number) => where < 0 ? -1 - where : where >> 1;
 function commonDirs(a: string, b: string): number {
   const x = a.split('/'), y = b.split('/');
   let n = 0;

@@ -49,6 +49,8 @@ export interface PageResult {
   /** Notes whose name or alias is close to the title (typos, word order), when no note is this
    *  page. Shown last, set apart from the rest. */
   fuzzy: FuzzyNote[];
+  /** The folders that are an OKF bundle's root ('' the vault's own). */
+  bundles: string[];
 }
 export interface FuzzyNote {
   path: string; title: string; score: number; sim: number;
@@ -357,7 +359,7 @@ export class VaultEngine {
     const counterparts: Counterpart[] = a.notes
       .filter((n) => TIER_LABEL[n.how])
       .sort((x, y) => TIER_ORDER.indexOf(x.how) - TIER_ORDER.indexOf(y.how) || x.path.localeCompare(y.path))
-      .map((n) => ({ path: n.path, title: noteTitle(n.path), how: n.how, label: TIER_LABEL[n.how]! }));
+      .map((n) => ({ path: n.path, title: this.name(n.path), how: n.how, label: TIER_LABEL[n.how]! }));
     // Backlinks: only through strong counterparts or unresolved links by text.
     const strong = new Set(counterparts.map((c) => c.path));
     const bySrc = new Map<string, BacklinkLine[]>();
@@ -369,7 +371,7 @@ export class VaultEngine {
       arr.push({ line: l.line, text: '', embed: l.embed, unresolved: l.via !== 'backlink' });
     }
     const backlinks: Backlink[] = [...bySrc]
-      .map(([path, lines]): Backlink => ({ path, title: noteTitle(path), lines }))
+      .map(([path, lines]): Backlink => ({ path, title: this.name(path), lines }))
       .sort((x, y) => x.title.localeCompare(y.title) || (x.path < y.path ? -1 : x.path > y.path ? 1 : 0))
       .slice(0, MAX_BACKLINK_NOTES);
     for (const b of backlinks) b.lines.sort((x, y) => x.line - y.line);
@@ -380,18 +382,23 @@ export class VaultEngine {
     const srcs = backlinks.map((b) => b.path);
     const seenTag = new Set<string>();
     const tagged: Tagged[] = [];
-    for (const t of a.tagged) if (!seenTag.has(t.path)) { seenTag.add(t.path); tagged.push({ path: t.path, title: noteTitle(t.path), tag: t.tag }); }
+    for (const t of a.tagged) if (!seenTag.has(t.path)) { seenTag.add(t.path); tagged.push({ path: t.path, title: this.name(t.path), tag: t.tag }); }
     tagged.sort((x, y) => x.title.localeCompare(y.title) || (x.path < y.path ? -1 : x.path > y.path ? 1 : 0));
     // Close names only for a page no note is: next to an exact match they would mostly be noise.
     const shown = new Set([...strong, ...srcs, ...tagged.map((t) => t.path)]);
     const fuzzy = counterparts.length ? [] : this.fuzzy(title, MAX_FUZZY).filter((f) => !shown.has(f.path));
-    return { title, counterparts, backlinks, tagged, fuzzy };
+    return { title, counterparts, backlinks, tagged, fuzzy, bundles: this.idx.bundleRoots() };
+  }
+
+  /** A note's name: in an OKF bundle its title, else its file name. */
+  name(path: string): string {
+    return (this.idx.bundleOf(path) !== null && this.idx.note(path)?.title) || noteTitle(path);
   }
 
   /** Notes whose name or alias is close to a page title, best first. */
   fuzzy(title: string, limit = 10): FuzzyNote[] {
     return (this.idx.fuzzy(title, limit) ?? (this.fuzzyIdx ??= new FuzzyIndex(this.idx)).match(title, limit)).map((h) => {
-      const name = noteTitle(h.path);
+      const name = this.name(h.path);
       return { path: h.path, title: name, score: h.score, sim: h.sim, marks: h.kind === NAME ? diffMarks(name, title).flat() : [] };
     });
   }
@@ -402,7 +409,7 @@ export class VaultEngine {
     for (let i = 0; i < items.length; i += READS_AT_ONCE) {
       await Promise.all(items.slice(i, i + READS_AT_ONCE).map(async (it, k) => {
         const text = await this.text(it.path);
-        if (text !== null) out[i + k] = contextOf(text, it.lines).map(({ text, line, up, kids, cut }) => ({ text, line, up, kids, ...(cut ? { cut } : {}) }));
+        if (text !== null) out[i + k] = contextOf(text, it.lines, this.idx.bundleOf(it.path) !== null).map(({ text, line, up, kids, cut }) => ({ text, line, up, kids, ...(cut ? { cut } : {}) }));
       }));
     }
     return out;

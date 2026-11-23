@@ -165,3 +165,10 @@ test('items of a numbered list carry their numbers, counted as Markdown counts t
   assert.deepEqual(contextOf(note, [3])[0].kids.map((k) => k.n), [undefined, 3, 4]);
   assert.equal(outlineOf(note).some((b) => b.text.includes('^steps')), false); // a line that is only an id is no block
 });
+
+test('OKF: type and status are pages in a bundle, plain words elsewhere', () => {
+  const note = '---\ntype: BigQuery Table\nstatus: draft\nkind: thing\n---\nbody\n';
+  assert.deepEqual(outlineOf(note, true).slice(0, 3).map((b) => b.text), ['type:: [[BigQuery Table]]', 'status:: [[draft]]', 'kind:: thing']);
+  assert.deepEqual(outlineOf(note).slice(0, 2).map((b) => b.text), ['type:: BigQuery Table', 'status:: draft']);
+  assert.equal(contextOf(note, [1], true)[0].text, 'type:: [[BigQuery Table]]');
+});

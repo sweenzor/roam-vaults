@@ -10,6 +10,7 @@ export const F_UNQUOTED_YAML = 32; // [[link]] in frontmatter without quotes (YA
 export const F_HAS_MD_EXT = 64;    // linkpath ends with .md
 export const F_EMPTY_ALIAS = 128;  // [[a|]]
 export const F_ANGLE = 256;        // [x](<Target Name.md>)
+export const F_OKF = 512;          // an OKF type or status value: a link only in an OKF bundle
 
 export type LinkKind = 'wiki' | 'md' | 'prop';
 
@@ -50,8 +51,13 @@ export interface Note {
   aliases: string[];
   tags: string[];        // without '#', original case; frontmatter + inline
   /** Flat pairs: link target ('' targets, which point at the note itself, are left out),
-   *  then line * 2 + (1 for an embed). */
+   *  then line * 2 + (1 for an embed), or -1 - line for a link that counts only when the note is in
+   *  an OKF bundle (F_OKF). */
   links: (string | number)[];
+  /** OKF: the frontmatter `title`, the note's name when it is in a bundle. */
+  title?: string;
+  /** OKF: an index.md whose frontmatter has okf_version, which makes its folder a bundle's root. */
+  root?: true;
 }
 
 export interface ParseOptions {

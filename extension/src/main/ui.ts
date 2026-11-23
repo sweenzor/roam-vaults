@@ -3,6 +3,8 @@
 import type { PageResult, Backlink } from '../engine.ts';
 import { blockBody, inline } from './markdown.ts';
 import { contextOf, kidsAt, lineOfSub, outlineOf, type OutlineBlock, type LineContext } from '../core/outline.ts';
+import { splitFrontmatter } from '../core/frontmatter.ts';
+import { titleOf } from '../core/vault-index.ts';
 
 export const ATTR = 'data-roam-vaults';
 
@@ -108,6 +110,8 @@ export interface SectionActions {
   resolve(target: string, from: string): Promise<string | null>;
   /** An image file of the vault that a note shows, or null. */
   image(target: string, from: string): Promise<Blob | null>;
+  /** Is the note in an OKF bundle? Its title is then its name, and its type and status are pages. */
+  okf(path: string): boolean;
   /** Read the lines of linking notes that came without their text (`unread`), and put it in them. */
   lines(notes: Backlink[]): Promise<void>;
   /** A click on a link in a line: open the page it names in Roam, where Roam would for that click.
@@ -201,7 +205,7 @@ function sectionHead(label: string, open = true, tools: HTMLElement[] = []) {
 function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[], showVault: boolean): HTMLElement {
   const out = h('div', { class: 'rv-groups rm-mentions refs-by-page-view' }); // Roam's own list classes: its style sheet lays the groups out
   /** One note: caret + (vault/)path as a namespaced title (+ tag); content shows when open. The open-in-editor button lives in the viewer. */
-  const group = (v: PanelVault, key: string, path: string, defOpen: boolean, tag: string | undefined, content: () => HTMLElement, cls = '', marks: number[] = []) => {
+  const group = (v: PanelVault, key: string, path: string, title: string, defOpen: boolean, tag: string | undefined, content: () => HTMLElement, cls = '', marks: number[] = []) => {
     const k = `${v.id}\n${key}\n${path}`;
     const box = h('div', { class: 'rv-content' });
     const c = caret(false, 'rm-caret-showing rv-group-caret dont-focus-block');
@@ -225,7 +229,7 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
           h('a', { onclick: (e: MouseEvent) => v.act.view(path, undefined, e.shiftKey) },
             h('span', { class: 'rm-page__title rv-note', style: 'cursor: pointer; text-decoration: none;' },
               showVault || name ? h('span', { class: 'rv-vault' }, (showVault ? `${v.name}/` : '') + path.slice(0, name)) : null,
-              ...marked(path.slice(name).replace(/\.md$/i, ''), 0, marks)))),
+              ...marked(title, 0, marks)))),
         tag ? h('span', { class: 'rv-tagref' }, `#${tag}`) : null),
       box);
   };
@@ -244,12 +248,12 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
   };
   for (const { v, r } of list) for (const c of r.counterparts) {
     const tag = tagOnce(v, c.path);
-    rows.push(() => group(v, 'page', c.path, false, tag, preview(v, c.path)));
+    rows.push(() => group(v, 'page', c.path, c.title, false, tag, preview(v, c.path)));
   }
   for (const { v, r } of list) for (const b of r.backlinks) {
     const tag = tagOnce(v, b.path);
     if (b.unread) unread.set(rows.length, { v, b });
-    rows.push(() => group(v, 'links', b.path, true, tag, () => {
+    rows.push(() => group(v, 'links', b.path, b.title, true, tag, () => {
       const box = h('div', {});
       // Two links in one block are one reference, as in Roam.
       const draw = () => box.replaceChildren(...b.lines.filter((l, i) => !b.lines.slice(0, i).some((x) => (x.at ?? x.line) === (l.at ?? l.line)))
@@ -262,11 +266,11 @@ function resultBody(panel: HTMLElement, list: { v: PanelVault; r: PageResult }[]
   }
   for (const { v, r } of list) for (const t of r.tagged) {
     const tag = tagOnce(v, t.path);
-    if (tag !== undefined) rows.push(() => group(v, 'tag', t.path, false, tag, preview(v, t.path)));
+    if (tag !== undefined) rows.push(() => group(v, 'tag', t.path, t.title, false, tag, preview(v, t.path)));
   }
   // Notes with a name close to the title: last, faded, the letters that differ highlighted.
   for (const { v, r } of list) for (const f of r.fuzzy ?? [])
-    rows.push(() => group(v, 'fuzzy', f.path, false, undefined, preview(v, f.path), ' rv-fuzzy', f.marks));
+    rows.push(() => group(v, 'fuzzy', f.path, f.title, false, undefined, preview(v, f.path), ' rv-fuzzy', f.marks));
 
   // Drawn again for the same page (a note changed, a vault finished scanning), the list is as long
   // as it had got, so the page doesn't jump under a reader who had scrolled down it.
@@ -351,7 +355,7 @@ function referenceEl(block: LineContext, path: string, act: SectionActions): HTM
   const expand = async (i: number) => {
     let text: string;
     try { text = await act.read(path); } catch { return; } // the note is gone: the panel is drawn again when the vault notices
-    const whole = outlineOf(text);
+    const whole = outlineOf(text, act.okf(path));
     const find = (blocks: OutlineBlock[], line: number): OutlineBlock | null => {
       for (const b of blocks) { if (b.line === line) return b; const k = find(b.kids, line); if (k) return k; }
       return null;
@@ -367,7 +371,7 @@ function referenceEl(block: LineContext, path: string, act: SectionActions): HTM
 
 /** What a drawn block needs of the note it is from. */
 /** What drawing a note's blocks asks of its vault. */
-type NoteActs = Pick<SectionActions, 'go' | 'resolve' | 'read' | 'image' | 'view'>;
+type NoteActs = Pick<SectionActions, 'go' | 'resolve' | 'read' | 'image' | 'view' | 'okf'>;
 /** An embed in an embed in an embed is drawn; one more level down stays a link. */
 const MAX_EMBEDS = 3;
 /** The context for the blocks of the note at `path`. `depth`: how many embeds it is inside. */
@@ -377,6 +381,7 @@ function ctxOf(path: string, act: NoteActs, depth = 0, noteFirst = false): Block
     open: (line, side) => act.view(path, line, side),
     link: (e) => linkClick(e, path, act, noteFirst),
     refs: (el) => fill(el, path, act, depth),
+    okf: act.okf(path),
   };
 }
 
@@ -434,6 +439,7 @@ async function embed(ph: HTMLElement, from: string, act: NoteActs, depth: number
       h('h3', { class: 'rm-page__title' }, h('a', {},
         h('span', { class: 'rm-page__title', tabindex: '-1', style: 'cursor: pointer; text-decoration: none;', onclick: (e: MouseEvent) => { e.stopPropagation(); act.view(to, undefined, e.shiftKey); } }, to.slice(to.lastIndexOf('/') + 1).replace(/\.md$/i, '')))));
     put(box);
+    if (act.okf(to)) act.read(to).then((t) => box.querySelector('h3 .rm-page__title')?.replaceChildren(noteName(to, t, true)), () => {});
     return;
   }
   const text = await act.read(to);
@@ -441,7 +447,7 @@ async function embed(ph: HTMLElement, from: string, act: NoteActs, depth: number
   if (line === undefined) return;
   const at = contextOf(text, [line])[0].line; // the block that line is in
   const find = (blocks: OutlineBlock[]): OutlineBlock | null => { for (const b of blocks) { if (b.line === at) return b; const k = find(b.kids); if (k) return k; } return null; };
-  const block = find(outlineOf(text)); // from the outline: a heading keeps its size there
+  const block = find(outlineOf(text, act.okf(to))); // from the outline: a heading keeps its size there
   if (!block) return;
   put(h('div', { class: 'rm-embed-container rm-embed-container--block nodrag rm-hide-bullet', onclick: (e: Event) => e.stopPropagation() },
     h('div', { class: 'rm-hide-bullet', style: 'flex: 1 1 100%; overflow: clip visible;' },
@@ -463,6 +469,8 @@ interface BlockCtx {
   unfolded?: boolean;
   /** The line to mark: its block is highlighted, and the blocks above it show their children. */
   mark?: number;
+  /** The note is in an OKF bundle (see outlineOf). */
+  okf?: boolean;
 }
 
 /** A block as Roam draws one: caret (when it has children), bullet, text, and its children nested
@@ -513,7 +521,7 @@ const UNFOLDED_BLOCKS = 400;
 
 /** A whole note as a Roam outline: its properties, headings, lists and paragraphs as blocks. */
 function noteEl(text: string, ctx: BlockCtx, mark?: number): DocumentFragment {
-  const blocks = outlineOf(text);
+  const blocks = outlineOf(text, ctx.okf);
   const at = mark === undefined ? undefined : contextOf(text, [mark])[0].line;
   const frag = document.createDocumentFragment();
   const all = { ...ctx, mark: at, unfolded: count(blocks) <= UNFOLDED_BLOCKS };
@@ -568,6 +576,8 @@ export interface ViewerActions {
   openLabel(): string;
   /** Open the Roam page a link names, when no note has that name. */
   go(title: string, where: Where): boolean;
+  /** Is the note in an OKF bundle? Its title is then its name, and its type and status are pages. */
+  okf(path: string): boolean;
 }
 let overlay: HTMLElement | null = null;
 const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); closeViewer(); } };
@@ -589,12 +599,18 @@ export async function openViewer(path: string, line: number | undefined, act: Vi
   document.addEventListener('keydown', onKey, true);
   try {
     const text = await act.read(path);
-    const links: NoteActs = { resolve: act.resolve, read: act.read, image: act.image, view: (to: string, at?: number) => { openViewer(to, at, act); }, // a note opened from the dialog opens in it
+    overlay?.querySelector('.rv-viewer-head h3')?.replaceChildren(noteName(path, text, act.okf(path)));
+    const links: NoteActs = { resolve: act.resolve, read: act.read, image: act.image, okf: act.okf, view: (to: string, at?: number) => { openViewer(to, at, act); }, // a note opened from the dialog opens in it
       go: (title: string, where: Where) => { const ok = act.go(title, where); if (ok && where === 'main') closeViewer(); return ok; } };
     body.replaceChildren(noteEl(text, { ...ctxOf(path, links, 0, true), open: undefined }, line));
   } catch (e) {
     body.replaceChildren(`Couldn't read this note: ${(e as Error).message}`);
   }
+}
+
+/** A note's name: in an OKF bundle its frontmatter title, else its file name. */
+export function noteName(path: string, text: string, okf: boolean): string {
+  return (okf && titleOf(splitFrontmatter(text).props)) || path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/i, '');
 }
 
 // ---------- a note in the main window ----------
@@ -611,7 +627,8 @@ export async function drawNote(host: HTMLElement, path: string, line: number | u
       blocks))));
   try {
     const text = await act.read(path);
-    blocks.replaceChildren(noteEl(text, ctxOf(path, { resolve: act.resolve, read: act.read, image: act.image, go: act.go, view }, 0, true), line));
+    host.querySelector('.rm-title-display > span')?.replaceChildren(noteName(path, text, act.okf(path)));
+    blocks.replaceChildren(noteEl(text, ctxOf(path, { resolve: act.resolve, read: act.read, image: act.image, go: act.go, okf: act.okf, view }, 0, true), line));
     blocks.querySelector('.rv-hl')?.scrollIntoView({ block: 'center' });
   } catch (e) {
     blocks.replaceChildren(`Couldn't read this note: ${(e as Error).message}`);

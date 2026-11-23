@@ -89,12 +89,13 @@ const clip = (s: string) => (s.length > MAX_BLOCK ? s.slice(0, MAX_BLOCK - 1) + 
 
 /** The outline around some lines of a note. A line that is on no block of its own (a paragraph, a
  *  line of a block's code) gives the block it belongs to, or itself. */
-export function contextOf(text: string, lines: number[]): LineContext[] {
+/** `okf`: the note is in an OKF bundle (see propOne). */
+export function contextOf(text: string, lines: number[], okf = false): LineContext[] {
   const r = rows(text);
   let props: ReturnType<typeof propsOf> | undefined;
   return lines.map((n) => {
     // a line of the frontmatter: its property, as the attribute block Roam would have for it
-    if (n > 0 && r[n]?.indent === -1 && r[0]?.indent === -1 && (props ??= propsOf(text.split('\n'))).end > n) {
+    if (n > 0 && r[n]?.indent === -1 && r[0]?.indent === -1 && (props ??= propsOf(text.split('\n'), okf)).end > n) {
       for (const p of props.blocks) {
         if (p.line === n) return { ...p, up: [] };
         const kid = p.kids.find((k) => k.line === n);
@@ -308,25 +309,27 @@ const RE_TAG_VALUE = /^#?[\p{L}\p{N}_/-]+$/u;
 
 /** One value of a property as Roam would hold it in an attribute: without YAML's quotes, a tag as a
  *  tag, a date as a link to that day's page, a path to a note as a link to it. */
-function propOne(key: string, raw: string): string {
+function propOne(key: string, raw: string, okf = false): string {
   const v = unquote(raw.trim());
   if (!v) return '';
   if (/^tags?$/i.test(key)) return RE_TAG_VALUE.test(v) && !/^\d+$/.test(v) ? '#' + v.replace(/^#/, '') : v;
+  // OKF's controlled words: a page per type and per status lists the notes that have it.
+  if (okf && /^(type|status)$/.test(key) && !/[[\]]/.test(v)) return `[[${v}]]`;
   const day = isoToRoamDaily(v);
   if (day) return `[[${day}]]`;
   if (RE_NOTE_PATH.test(v)) return `[${v}](${v})`;
   return v;
 }
 /** A property's value: one value, or a list written on one line (`[a, b]`). */
-export function propValue(key: string, raw: string): string {
+export function propValue(key: string, raw: string, okf = false): string {
   const v = raw.trim();
   const list = /^\[(.*)\]$/.exec(v);
-  if (list && !v.startsWith('[[')) return list[1].split(',').map((x) => propOne(key, x)).filter(Boolean).join(/^tags?$/i.test(key) ? ' ' : ', ');
-  return propOne(key, v);
+  if (list && !v.startsWith('[[')) return list[1].split(',').map((x) => propOne(key, x, okf)).filter(Boolean).join(/^tags?$/i.test(key) ? ' ' : ', ');
+  return propOne(key, v, okf);
 }
 /** The properties of a note's frontmatter as attribute blocks ("name:: value"), a list or a map
  *  under a name as blocks under it. `end`: the line that closes the frontmatter, -1 without one. */
-function propsOf(lines: string[]): { blocks: OutlineBlock[]; end: number } {
+function propsOf(lines: string[], okf = false): { blocks: OutlineBlock[]; end: number } {
   const blocks: OutlineBlock[] = [];
   if (lines[0]?.replace(/\r$/, '') !== '---') return { blocks, end: -1 };
   const end = lines.findIndex((l, k) => k > 0 && /^(---|\.\.\.)\s*$/.test(l));
@@ -337,12 +340,12 @@ function propsOf(lines: string[]): { blocks: OutlineBlock[]; end: number } {
     const m = /^([^\s:#-][^:]*?)\s*:(?:\s+(.*))?$/.exec(l);
     if (m) {
       key = unquote(m[1]);
-      const value = m[2] ? propValue(key, m[2]) : '';
+      const value = m[2] ? propValue(key, m[2], okf) : '';
       blocks.push(prop = { text: `${key}::${value ? ' ' + value : ''}`, line: i, kids: [] });
     } else if (prop && l.trim()) {
       const item = l.trim().replace(/^-\s+/, '');
       const pair = /^([\w][\w .-]*?):\s+(.*)$/.exec(item); // a map in a list: "resource: notes/a.md"
-      prop.kids.push({ text: pair ? `${pair[1]}: ${propValue(pair[1], pair[2])}` : propValue(key, item), line: i, kids: [] });
+      prop.kids.push({ text: pair ? `${pair[1]}: ${propValue(pair[1], pair[2], okf)}` : propValue(key, item, okf), line: i, kids: [] });
     }
   }
   return { blocks, end };
@@ -352,11 +355,11 @@ function propsOf(lines: string[]): { blocks: OutlineBlock[]; end: number } {
  *  frontmatter an attribute block ("name:: value"), each heading a block with what follows it under
  *  it (a heading block's text keeps its #s), each list item a block nested by its indentation, each
  *  paragraph, quote, table or block of code a block. */
-export function outlineOf(text: string): OutlineBlock[] {
+export function outlineOf(text: string, okf = false): OutlineBlock[] {
   const r = rows(text);
   const root: OutlineBlock = { text: '', line: -1, kids: [] };
   const lines = text.split('\n');
-  const props = propsOf(lines);
+  const props = propsOf(lines, okf);
   root.kids.push(...props.blocks);
   const i = props.end + 1;
   fill(r, i, r.length, root, { n: Infinity });

@@ -6,7 +6,7 @@
 
 import {
   type Link, type ParsedNote, type ParseOptions, type Heading,
-  F_TRIMMED, F_ESCAPED_PIPE, F_RELATIVE, F_ABSOLUTE, F_DECODE_FAIL, F_UNQUOTED_YAML, F_HAS_MD_EXT, F_EMPTY_ALIAS, F_ANGLE,
+  F_TRIMMED, F_ESCAPED_PIPE, F_RELATIVE, F_ABSOLUTE, F_DECODE_FAIL, F_UNQUOTED_YAML, F_HAS_MD_EXT, F_EMPTY_ALIAS, F_ANGLE, F_OKF,
 } from './types.ts';
 import { RE_NOTE_PATH } from './outline.ts';
 const RE_ISO_DAY = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/;
@@ -255,6 +255,8 @@ export function parseNote(path: string, text: string, opts: ParseOptions = {}): 
         const prop = { kind: 'prop' as const, embed: false, display: null, line: lineNo, col: 0, prop: intern(curKey), ...(opts.snippets ? { snippet: detach(l.trim().slice(0, 100)) } : {}) };
         if (RE_ISO_DAY.test(v)) links.push({ ...prop, target: intern(v), subpath: '', flags: 0 });
         else if (RE_NOTE_PATH.test(v)) { const d = parseMdDest(v); if (d) links.push({ ...prop, target: d.target, subpath: d.subpath, flags: d.flags }); }
+        // OKF's type and status are controlled words: in a bundle, each is a page listing its notes.
+        else if (v && /^(type|status)$/.test(curKey) && !/[[\]]/.test(v)) links.push({ ...prop, target: intern(v.normalize('NFC')), subpath: '', flags: F_OKF });
       }
     }
   }

@@ -250,3 +250,40 @@ test('a scan handed over in batches fills the database like one in memory, and d
   const fresh = new VaultEngine(fs); await fresh.build();
   await same(fresh, sql, titles);
 });
+
+test('OKF bundles: found from index.md, kept across starts, followed by links and names', async () => {
+  const files = {
+    'notes/loose.md': '---\ntitle: Not a bundle\ntype: Supplier\n---\n[x](recipes/bread.md)\n',
+    'recipes/bread.md': 'elsewhere',
+    'kb/index.md': '---\nokf_version: "0.3"\ntitle: Bakery\n---\n',
+    'kb/recipes/bread.md': '---\ntype: Recipe\ntitle: Country Bread\n---\n[x](../suppliers/mill.md) [y](/suppliers/mill.md) [z](flour.md)\n',
+    'kb/recipes/flour.md': '---\ntype: Ingredient\n---\n',
+    'kb/suppliers/mill.md': '---\ntype: Supplier\ntitle: The Mill\n---\n[back](recipes/bread.md)\n',
+    'kb/suppliers/recipes/bread.md': 'a note in the way',
+  };
+  const fs = memFS(files);
+  const { mem, sql } = await both(fs);
+  for (const e of [mem, sql]) {
+    assert.deepEqual(e.idx.bundleRoots(), ['kb']);
+    assert.equal(e.name('kb/recipes/bread.md'), 'Country Bread');
+    assert.equal(e.name('notes/loose.md'), 'loose', 'a title outside a bundle is an alias, not the name');
+    assert.equal(e.resolve('/suppliers/mill.md', 'kb/recipes/bread.md'), 'kb/suppliers/mill.md');
+    assert.equal(e.resolve('recipes/bread.md', 'kb/suppliers/mill.md'), 'kb/suppliers/recipes/bread.md', 'from the linking file\'s folder first');
+    assert.equal(e.resolve('recipes/bread.md', 'notes/loose.md'), 'recipes/bread.md', 'outside a bundle, from the vault\'s folder');
+    const r = await e.query('The Mill');
+    assert.deepEqual(r.counterparts.map((c) => c.title), ['The Mill']);
+    assert.deepEqual(r.backlinks.map((b) => b.title), ['Country Bread']);
+    assert.deepEqual(r.bundles, ['kb']);
+    const sup = await e.query('Supplier');
+    assert.deepEqual(sup.backlinks.map((b) => [b.title, b.lines.map((l) => [l.line, l.text])]), [['The Mill', [[1, 'type:: [[Supplier]]']]]]);
+  }
+  // The next start answers from the database; an index.md that stops saying okf_version ends the bundle.
+  sql.matcher.detach();
+  const again = new VaultEngine(fs, undefined, new SqlIndex(sql.idx.db));
+  assert.equal(again.name('kb/suppliers/mill.md'), 'The Mill');
+  fs.write('kb/index.md', '---\ntitle: Bakery\n---\n');
+  await again.refresh(['kb/index.md']);
+  assert.deepEqual(again.idx.bundleRoots(), []);
+  assert.equal(again.name('kb/suppliers/mill.md'), 'mill');
+  assert.deepEqual((await again.query('Supplier')).backlinks, [], 'a type outside a bundle is a word');
+});

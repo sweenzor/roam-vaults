@@ -32,6 +32,8 @@ class Vault implements PanelVault {
   id: string; handle: FileSystemDirectoryHandle; name: string;
   state: SectionState = { kind: 'indexing', detail: '' };
   results = new Map<string, PageResult | null>();
+  /** The vault's OKF bundle roots, as the last answer gave them. */
+  bundles: string[] = [];
   act: SectionActions;
   private worker: Worker;
   private seq = 0;
@@ -67,6 +69,7 @@ class Vault implements PanelVault {
       openOutside: (path) => this.openOutside(path),
       openLabel: () => openLabel(openWith()),
       go: openInRoam,
+      okf: (path) => this.bundles.some((r) => r === '' || path.startsWith(r + '/')),
     };
     this.viewer = viewer;
     this.act = {
@@ -148,6 +151,7 @@ class Vault implements PanelVault {
     else {
       const gen = this.gen;
       r = await this.call<PageResult | null>('query', { title }).catch(() => null);
+      if (r?.bundles) this.bundles = r.bundles;
       if (gen === this.gen) { // an answer from before a change is not kept
         this.results.set(title, r);
         if (this.results.size > MAX_RESULTS) this.results.delete(this.results.keys().next().value!);

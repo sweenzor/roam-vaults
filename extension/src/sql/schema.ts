@@ -40,6 +40,9 @@ export const MIGRATIONS: ((db: Db) => void)[] = [
   // reads them: what was read before is read again.
   (db) => db.exec('DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;'),  // 4: dates and paths to notes in properties are links now: read again.
   (db) => db.exec('DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;'),
+  // 5: a note's OKF title and whether it is a bundle's root (JSON, as in Note; NULL for neither): read again.
+  (db) => db.exec(`ALTER TABLE notes ADD COLUMN okf TEXT;
+    DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;`),
 ];
 
 /**

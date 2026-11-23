@@ -167,10 +167,11 @@ export class SqlIndex extends VaultIndex {
     return r && { size: r[0], mtime: r[1] };
   }
   override note(path: string): Note | undefined {
-    const r = this.one('SELECT f.id, n.size, n.mtime, n.aliases, n.tags, n.links FROM files f JOIN notes n ON n.id = f.id WHERE f.path = ?', [path]);
+    const r = this.one('SELECT f.id, n.size, n.mtime, n.aliases, n.tags, n.links, n.okf FROM files f JOIN notes n ON n.id = f.id WHERE f.path = ?', [path]);
     if (!r) return undefined;
     const aliases = JSON.parse(r[3]), tags = JSON.parse(r[4]), links = JSON.parse(r[5]);
-    return { path, size: r[1], mtime: r[2], aliases: aliases.length ? aliases : NONE, tags: tags.length ? tags : NONE, links: links.length ? links : NONE };
+    const note: Note = { path, size: r[1], mtime: r[2], aliases: aliases.length ? aliases : NONE, tags: tags.length ? tags : NONE, links: links.length ? links : NONE };
+    return r[6] ? Object.assign(note, JSON.parse(r[6])) : note;
   }
   /** Counted once and kept up from there: a scan asks after every batch. */
   private count = -1;
@@ -241,13 +242,13 @@ export class SqlIndex extends VaultIndex {
     const rows: unknown[] = [], names: unknown[] = [], keys: unknown[] = [];
     for (const n of notes) {
       const id = ids.get(n.path)!;
-      rows.push([id, n.size, n.mtime, JSON.stringify(n.aliases), JSON.stringify(n.tags), JSON.stringify(n.links)]);
+      rows.push([id, n.size, n.mtime, JSON.stringify(n.aliases), JSON.stringify(n.tags), JSON.stringify(n.links), okfOf(n)]);
       for (const [name, links] of this.linksByName(n.links, n.path)) names.push([id, name, JSON.stringify(links)]);
       for (const k of aliasKeys(n)) keys.push([ALIAS, k, id]);
       for (const k of noteTagKeys(n)) keys.push([TAG, k, id]);
     }
-    this.run(`INSERT OR REPLACE INTO notes(id, size, mtime, aliases, tags, links)
-      SELECT value ->> 0, value ->> 1, value ->> 2, value ->> 3, value ->> 4, value ->> 5 FROM json_each(?)`, [JSON.stringify(rows)]);
+    this.run(`INSERT OR REPLACE INTO notes(id, size, mtime, aliases, tags, links, okf)
+      SELECT value ->> 0, value ->> 1, value ->> 2, value ->> 3, value ->> 4, value ->> 5, value ->> 6 FROM json_each(?)`, [JSON.stringify(rows)]);
     if (names.length) this.run('INSERT INTO link_names(note, name, links) SELECT value ->> 0, value ->> 1, value ->> 2 FROM json_each(?)', [JSON.stringify(names)]);
     if (keys.length) this.run('INSERT OR IGNORE INTO note_keys(kind, key, note) SELECT value ->> 0, value ->> 1, value ->> 2 FROM json_each(?)', [JSON.stringify(keys)]);
     this.fuzzyTitles.putMany(notes.map((n) => ({ id: ids.get(n.path)!, path: n.path, aliases: n.aliases, isNew: !known.has(n.path) })));
@@ -314,4 +315,10 @@ export class SqlIndex extends VaultIndex {
     for (const n of notes) this.upsertNote(n);
     this.flush();
   }
+}
+
+/** A note's OKF fields as the okf column holds them. */
+function okfOf(n: Note): string | null {
+  if (!n.title && !n.root) return null;
+  return JSON.stringify({ ...(n.title ? { title: n.title } : {}), ...(n.root ? { root: true } : {}) });
 }

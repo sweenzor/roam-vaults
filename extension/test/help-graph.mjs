@@ -66,6 +66,10 @@ const FILES = {
   // a numbered list under a line, and a table (embedded by its id, as Obsidian names a table)
   'Brioche plan.md': `- [[Brioche]] steps\n${STEPS.map((t, i) => `    ${i + 1}. ${t}\n`).join('')}- [[Brioche]] table ![[Brioche plan#^amounts]]\n\n${TABLE.map((r, i) => `| ${r.join(' | ')} |\n${i ? '' : '| --- | --- | --- |\n'}`).join('')}\n^amounts\n`,
   'pictures/crumb.png': picture(),
+  // an OKF bundle: notes named by their title, type and status as pages, paths from the note's folder
+  'kb/index.md': '---\nokf_version: "0.3"\ntitle: Bakery suppliers\n---\n# Mills\n\n* [Stone Mill](mills/stone-mill.md)\n',
+  'kb/mills/stone-mill.md': '---\ntype: Supplier\ntitle: Stone Mill\nstatus: stable\n---\n# Flour\n\nRye and spelt, delivered on Mondays. See [the rye order](../orders/rye.md).\n',
+  'kb/orders/rye.md': '---\ntype: Order\ntitle: Weekly rye order\n---\nTwenty sacks.\n',
   'Wholesale.md': exported(PAGES.Wholesale), 'Days/2026/July 9th, 2026.md': exported(PAGES['July 9th, 2026']), 'Sourdough.md': exported(PAGES[PAGE]) };
 
 const browser = await chromium.launch({ env: { ...process.env, LC_ALL: 'C.UTF-8' } });
@@ -95,6 +99,7 @@ await page.evaluate(async ({ PAGES, COLD, STEPS, TABLE }) => {
     try { await api.createPage({ page: { title, uid } }); } catch (e) { if (!api.pull('[:block/uid]', [':node/title', title])) throw new Error(`page ${title}: ${e?.message ?? e}`); }
     await add(api.pull('[:block/uid]', [':node/title', title])[':block/uid'], blocks);
   }
+  await api.createPage({ page: { title: 'Supplier', uid: 'rvhgsuppl' } });
   await api.createPage({ page: { title: 'Proofing', uid: 'rvhgproof' } });
   await api.createBlock({ location: { 'parent-uid': 'rvhgproof', order: 0 }, block: { string: 'Warm', uid: 'rvhgwarm0', heading: 2, open: true } });
   await api.createBlock({ location: { 'parent-uid': 'rvhgwarm0', order: 0 }, block: { string: 'two hours at 26°', uid: 'rvhgwarm1' } });
@@ -370,6 +375,23 @@ await shot('12-numbered-and-table.png');
   check(`a Markdown table is Roam's table: ${tables[0].length} cells in the same place, size and style`, tables[0].length === 9 && JSON.stringify(tables[0]) === JSON.stringify(tables[1]), '\n  roam  ' + tables[0].join('\n        ') + '\n  vault ' + tables[1].join('\n        '));
 }
 fs.writeFileSync(path.join(OUT, 'measured.json'), JSON.stringify(await measure(), null, 1));
+
+// ---------- an OKF bundle ----------
+await open('Supplier');
+await page.waitForSelector('.rv-panel .rv-group-title');
+await page.waitForTimeout(500);
+await shot('13-okf-type-page.png');
+check('a type\'s page lists the OKF notes of that type, each named by its title', (await page.locator('.rv-panel .rv-group-title').allInnerTexts()).map((t) => t.trim()).join() === 'kb/mills/Stone Mill');
+check('the note\'s type is drawn as a page reference', (await page.locator('.rv-panel .rm-block-text .rm-page-ref', { hasText: 'Supplier' }).count()) === 1);
+await page.locator('.rv-panel .rv-group-title a').first().click();
+await page.waitForSelector('.rv-note-page .roam-block-container');
+await page.waitForTimeout(300);
+check('it opens as a page named by its title', (await page.locator('.rv-note-page .rm-title-display').innerText()) === 'Stone Mill');
+check('its status is a page reference too', (await page.locator('.rv-note-page .rm-page-ref', { hasText: 'stable' }).count()) === 1);
+await page.locator('.rv-note-page [data-rv-target]', { hasText: 'the rye order' }).click();
+await page.waitForFunction(() => document.querySelector('.rv-note-page .rm-title-display')?.textContent === 'Weekly rye order', null, { timeout: 5000 }).catch(() => {});
+check('a link is read from the note\'s folder, and opens the note it names', (await page.locator('.rv-note-page .rm-title-display').innerText()) === 'Weekly rye order');
+
 
 check('no errors in the page', !errors.length, errors.join(' | ').slice(0, 500));
 const failed = checks.filter((c) => !c.ok);
