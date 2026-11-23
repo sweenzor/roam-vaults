@@ -21,6 +21,7 @@ import {
   dismissDialogs, openPage, openSettings, clickLeaf, loadDevExtension, vaultRows, statusOf, clickButton, addVault,
   clearExtensionState, scanMarked, touchAll, panelText, setSwitch,
 } from './roam.mjs';
+import { checkPlan } from './plan.mjs';
 
 const EMAIL = process.env.ROAM_EMAIL, PASSWORD = process.env.ROAM_PASSWORD;
 delete process.env.ROAM_EMAIL; delete process.env.ROAM_PASSWORD;
@@ -157,6 +158,7 @@ async function main() {
   serve(DIST);
   await launchRoam();
   await signIn(EMAIL, PASSWORD);
+  { const plan = await checkPlan(roam.page, new URL('../test-account-plan.test.ts', import.meta.url)); check("The test account's plan is Believer, ends more than a year away, on the date the unit test pins", plan.ok, plan.detail); }
   await openGraph(GRAPH);
   await clearExtensionState();
   await openPage(TEST_PAGE);
