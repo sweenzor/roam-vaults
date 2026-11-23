@@ -83,7 +83,7 @@ Obsidian keeps them in the file name and in wikilinks.
 | `log.md` | Dated entries under `## YYYY-MM-DD` | Blocks on daily pages | Each day is a reference on that day's daily page, entries under it | None |
 | Path fields (`superseded_by`, `sources[].resource`) | Relations between notes | References in attributes | A path to a note in any property is a link to it, drawn as the attribute block | None |
 | `type`, `status` | Controlled words | Page references in an attribute | In a bundle, page references: a type's page lists its notes | None |
-| Markdown links | Resolved from the file's folder; `/` from the bundle root; case-sensitive | Page reference | In a bundle, the spec's order, then as in a vault; not case-sensitive | Reference-style links are not read |
+| Markdown links | Resolved from the file's folder; `/` from the bundle root; case-sensitive | Page reference | In a bundle, the spec's order, then as in a vault; not case-sensitive. Reference-style links (`[text][ref]`) read as the inline links they stand for, their definitions hidden | Not case-sensitive |
 | `tags` | A list | Tags | The list form, or one tag as a string | None |
 | Body text | Hard-wrapped paragraphs, GFM tables, footnotes | Blocks | Wrapped lines joined; tables are Roam's table | Footnotes are raw |
 | Bundle | A folder of OKF files; its root `index.md` has frontmatter | A vault | A folder whose `index.md` has `okf_version` is a bundle | A root `index.md` without `okf_version` is not seen |
@@ -116,7 +116,7 @@ What the extension copies from Roam, measured in Linked References:
 
 1. The right-click menus of Linked References, and its gear menu.
 2. Unlinked mentions from vaults. This needs note text, so it belongs with full-text search.
-3. Reference-style Markdown links (`[text][ref]` with `[ref]: target.md`).
+3. Footnotes, which are drawn raw.
 
 ## What cannot be mapped
 

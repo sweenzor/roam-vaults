@@ -43,6 +43,8 @@ export const MIGRATIONS: ((db: Db) => void)[] = [
   // 5: a note's OKF title and whether it is a bundle's root (JSON, as in Note; NULL for neither): read again.
   (db) => db.exec(`ALTER TABLE notes ADD COLUMN okf TEXT;
     DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;`),
+  // 6: reference-style Markdown links are links now: read again.
+  (db) => db.exec('DELETE FROM fuzzy_name; DELETE FROM link_names; DELETE FROM note_keys; DELETE FROM notes; DELETE FROM files; DELETE FROM meta;'),
 ];
 
 /**

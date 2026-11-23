@@ -9,6 +9,7 @@ import {
   F_TRIMMED, F_ESCAPED_PIPE, F_RELATIVE, F_ABSOLUTE, F_DECODE_FAIL, F_UNQUOTED_YAML, F_HAS_MD_EXT, F_EMPTY_ALIAS, F_ANGLE, F_OKF,
 } from './types.ts';
 import { RE_NOTE_PATH } from './outline.ts';
+import { refDefs, refUses } from './reflinks.ts';
 const RE_ISO_DAY = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/;
 import { splitFrontmatter, extractAliases, extractFmTags } from './frontmatter.ts';
 
@@ -302,6 +303,18 @@ export function parseNote(path: string, text: string, opts: ParseOptions = {}): 
     const d = parseMdDest(m[3]);
     if (!d) continue;
     push({ kind: 'md', embed: m[1] === '!', target: d.target, subpath: d.subpath, display: detach(m[2]), line: 0, col: 0, flags: d.flags }, m.index);
+  }
+
+  // Reference-style links, [text][ref] with "[ref]: target.md" on a line of its own: each use is the
+  // link its definition gives.
+  if (masked.includes(']:', fm.bodyStart)) {
+    const body = masked.slice(fm.bodyStart);
+    const defs = refDefs(body.split('\n'));
+    for (const u of refUses(body, defs)) {
+      const embed = body[u.index - 1] === '!';
+      const d = parseMdDest(u.dest);
+      if (d) push({ kind: 'md', embed, target: d.target, subpath: d.subpath, display: detach(u.text), line: 0, col: 0, flags: d.flags }, fm.bodyStart + u.index - (embed ? 1 : 0));
+    }
   }
 
   const tagSet = new Set<string>();

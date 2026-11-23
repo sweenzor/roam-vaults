@@ -4,6 +4,7 @@
 // lines that continue it), nested by indentation, as Roam, Logseq and Obsidian's outliners write it;
 // a heading is a parent of what follows it, up to the next heading of its level. No Node APIs.
 import { isoToRoamDaily } from './dates.ts';
+import { refDef, refDefs, inlineRefs } from './reflinks.ts';
 
 export interface OutlineBlock {
   /** The block's text without its list marker; the lines of a block of several lines, joined by \n. */
@@ -81,6 +82,18 @@ function rows(text: string): Row[] {
     if (item) out.push({ indent, kind: 'item', text: item[3] ?? '', level: 0, ...(item[2] ? { num: +item[2] } : {}) });
     else if ((m = RE_HEADING.exec(raw))) out.push({ indent: 0, kind: 'heading', text: m[2], level: m[1].length });
     else out.push({ indent, kind: f ? 'code' : 'text', text: raw.slice(ws.length), level: 0 });
+  }
+  // Reference-style links: each use reads as the inline link it stands for, and the lines that
+  // define them are hidden, as Obsidian's reading view hides them.
+  if (text.includes(']:')) {
+    const defs = refDefs(lines, (k) => out[k]?.kind !== 'text' || out[k].indent > 3);
+    if (defs.size) {
+      for (let k = 0; k < out.length; k++) {
+        const row = out[k];
+        if (row.kind === 'text' && row.indent <= 3 && refDef(lines[k])) out[k] = { indent: -1, kind: 'blank', text: '', level: 0 };
+        else if (row.kind !== 'code' && row.kind !== 'blank') row.text = inlineRefs(row.text, defs);
+      }
+    }
   }
   return out;
 }

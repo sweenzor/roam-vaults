@@ -4,7 +4,7 @@
 // vault in a single record and rewrote all of it after every change.
 import type { Note } from './core/types.ts';
 
-const DB = 'roam-vaults-cache', STORE = 'notes', VERSION = 3; // 3: OKF title and root on a note
+const DB = 'roam-vaults-cache', STORE = 'notes', VERSION = 4; // 3: OKF title and root on a note; 4: reference-style links
 const PAGE = 2000; // notes read or written per request, to keep the copies in flight small
 
 function open(): Promise<IDBDatabase> {

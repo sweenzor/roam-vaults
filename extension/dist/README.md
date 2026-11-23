@@ -41,6 +41,8 @@ frontmatter, as the spec asks bundles to have:
 - Standard Markdown links are followed, including bundle-absolute ones like
   `[Customers](/tables/customers.md)`, as well as `[[wikilinks]]`. In a bundle a link is read from the
   note's own folder first, and one that starts with `/` from the bundle's folder.
+- Reference-style links (`[text][ref]` with `[ref]: target.md` below) are read as the links they stand
+  for, and the lines that define them are hidden, as in Obsidian's reading view.
 
 </details>
 
