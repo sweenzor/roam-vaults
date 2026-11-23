@@ -34,17 +34,27 @@ const PAGES = {
   [PAGE]: ['Sow indoors in March, plant out after the last frost', 'This year: San Marzano, Sungold and Black Krim', 'Feed every week once the first truss sets'],
   'Garden jobs': [`Order canes for the [[${PAGE}]]`, 'Turn the compost', 'Net the tomatoes before the blackbirds find them'],
   [SIMILAR_PAGE]: ['Ask at the allotment what they use on the squash'],
+  Greenhouse: ['Open the vents on warm mornings'],
+  // pages only the vaults talk about: a property's name, and an OKF type
+  sunlight: [], Supplier: [],
 };
 // The vaults: folders of Markdown notes, as Obsidian keeps them.
 const VAULTS = {
   Garden: {
-    'Plants/Tomatoes.md': '---\naliases: [Tomato]\n---\n# Tomatoes\n\nCordon varieties need a cane or a string from the day they are planted out.\n\n- Pinch out the side shoots every week\n- Water at the base, never over the leaves\n- See [[Blight]] for what to watch for in August\n',
+    'Plants/Tomatoes.md': '---\naliases: [Tomato]\nsunlight: full sun\n---\n# Tomatoes\n\nCordon varieties need a cane or a string from the day they are planted out.\n\n- Pinch out the side shoots every week\n- Water at the base, never over the leaves\n- See [[Blight]] for what to watch for in August\n',
     'Journal/2026-05-14.md': '- Planted out the [[Tomatoes]] in bed 2, 45 cm apart\n- Sowed a second row of carrots\n',
     'Projects/Raised bed plan.md': '## Bed 2\n\n- [[Tomatoes]] along the back, basil in front\n- Leave room for a path on the north side\n',
-    'Pests/Blight.md': '# Blight\n\nLate blight spreads fast in warm, wet weather.\n\n- Showed up on the [[Tomatoes]] after a wet week last August\n- Take off the leaves it is on and keep them out of the compost\n- Grow under cover if it comes back\n',
+    'Pests/Blight.md': '# Blight\n\nLate blight spreads fast in warm, wet weather.\n\n- Showed up on the [[Tomatoes]] after a wet week last August\n- Take off the leaves it is on and keep them out of the compost\n- Grow under cover if it comes back ^cover\n',
     'Seeds/Spring order.md': '- San Marzano and Sungold #tomatoes\n- Nantes carrots\n',
     'Journal/2026-06-02.md': '- Greenhouse\n    - Tied the [[Tomatoes]] in to the top wire\n        - Took off the leaves below the first truss\n        - Fed with comfrey tea\n- Paths\n    - Laid bark between beds 1 and 2\n',
-    'Soil/Fertilizer schedule.md': '# Fertilizer schedule\n\n- Comfrey tea every two weeks from June\n- Seaweed feed when the fruit sets\n',
+    'Soil/Fertilizer schedule.md': '# Fertilizer schedule\n\n- Comfrey tea every two weeks from June\n- Seaweed feed when the fruit sets ^seaweed\n',
+    // a block embedded, a block linked to, a heading embedded with what is under it
+    'Journal/2026-07-01.md': '- [[Greenhouse]] feeding this month ![[Fertilizer schedule#^seaweed]]\n- [[Greenhouse]] door open on wet days: [[Blight#^cover]]\n- [[Greenhouse]] the beds ![[Raised bed plan#Bed 2]]\n',
+    // properties: each name is a page, as an attribute's is in Roam
+    'Plants/Basil.md': '---\nsunlight: full sun\nsown: 2026-04-02\nbed: "[[Raised bed plan]]"\n---\nPinch the tops out so it bushes.\n',
+    // an OKF bundle: notes named by their title, their type a page
+    'Suppliers/index.md': '---\nokf_version: "0.3"\ntitle: Seed suppliers\n---\n# Suppliers\n\n- [Heritage Seed Company](heritage-seeds.md)\n',
+    'Suppliers/heritage-seeds.md': '---\ntype: Supplier\ntitle: Heritage Seed Company\nstatus: stable\n---\n# Orders\n\nTomato and basil seed, ordered in January. See [the spring order][order].\n\n[order]: ../Seeds/Spring%20order.md\n',
     '.obsidian/app.json': '{}',
   },
   Recipes: {
@@ -180,6 +190,67 @@ async function main() {
   await sleep(300);
   await evalIn(() => [...document.querySelectorAll('.roam-article .rv-group')].find((g) => g.textContent.includes('Tied the'))?.setAttribute('data-rv-shot', ''));
   await snap('nested-line', await boxOf('.roam-article .rv-group[data-rv-shot]', 16));
+
+  // 4c. Embeds and a link to a block: a block, the block linked to, and a heading with what is under it.
+  await openPage('Greenhouse');
+  await waitFor('the embeds on Greenhouse', async () => { const t = await panelText(); return t.includes('Seaweed feed') && t.includes('Grow under cover') && t.includes('basil in front'); }, 20000);
+  await sleep(800);
+  await snap('embeds', await pageBox());
+
+  // 4d. A property's name is a page: the notes with a "sunlight" property.
+  await openPage('sunlight');
+  await waitFor('the notes with the property', async () => { const t = await panelText(); return t.includes('Basil') && t.includes('Tomatoes'); }, 20000);
+  await sleep(500);
+  await snap('property-page', await pageBox());
+
+  // 4e. An OKF bundle: the type's page lists its notes by their titles; a note opens under its title.
+  await openPage('Supplier');
+  await waitFor('the OKF note on its type\'s page', async () => (await panelText()).includes('Heritage Seed Company'), 20000);
+  await sleep(500);
+  await snap('okf-type-page', await pageBox());
+  await roam.page.locator('.roam-article .rv-panel .rv-group-title a').first().click();
+  await waitFor('the OKF note in the main window', () => evalIn(() => document.querySelector('.rv-note-page .rm-title-display')?.textContent.trim() === 'Heritage Seed Company'), 10000);
+  await sleep(500);
+  {
+    const note = await boxOf('.rv-note-page'), title = await boxOf('.rv-note-page .rm-title-display');
+    const y = Math.max(0, title.y - 24);
+    await snap('okf-note', { x: note.x, y, width: note.width, height: Math.min(HEIGHT, note.y + note.height + 24) - y });
+  }
+  await evalIn(() => history.back());
+  await sleep(1000);
+
+  // 4f. The section's search box and filter, as Linked References has them.
+  await openPage(PAGE);
+  await waitFor('External Vault References on the page', async () => (await panelText()).includes('Passata'), 20000);
+  await roam.page.locator('.roam-article .rv-panel .rm-mentions-search__search-icon').first().click();
+  await roam.page.keyboard.type('bed');
+  await waitFor('the search to narrow the section', () => evalIn(() => / of \d+ external vault references$/.test(document.querySelector('.roam-article .rv-panel .rv-sec-head strong')?.textContent ?? '')), 10000);
+  await roam.page.mouse.move(5, 5);
+  await sleep(800);
+  await snap('search', await boxOf('.roam-article .rv-panel', 16));
+  await roam.page.locator('.roam-article .rv-panel .rm-mentions-search .bp3-input-action').click();
+  await sleep(800);
+  await roam.page.locator('.roam-article .rv-panel .bp3-icon-filter').first().click();
+  const pop = '.bp3-portal[data-roam-vaults] .bp3-popover';
+  await waitFor('the filter', () => evalIn((pop) => !!document.querySelector(`${pop} .rm-filter-button`), pop), 10000);
+  await sleep(500);
+  {
+    const head = await boxOf('.roam-article .rv-panel .rv-sec-head', 16), p = await boxOf(pop, 16);
+    const x = Math.min(head.x, p.x), y = Math.min(head.y, p.y);
+    await snap('filter', { x, y, width: Math.max(head.x + head.width, p.x + p.width) - x, height: Math.max(head.y + head.height, p.y + p.height) - y });
+  }
+  await roam.page.locator(`${pop} .rm-filter-button button`, { hasText: 'Blight' }).first().click();
+  await roam.page.keyboard.press('Escape');
+  await waitFor('the filter to narrow the section', () => evalIn(() => / of \d+ external vault references$/.test(document.querySelector('.roam-article .rv-panel .rv-sec-head strong')?.textContent ?? '')), 10000);
+  await roam.page.mouse.move(5, 5);
+  await sleep(800);
+  await snap('filtered', await boxOf('.roam-article .rv-panel', 16));
+  // take it off again
+  await roam.page.locator('.roam-article .rv-panel .bp3-icon-filter').first().click();
+  await waitFor('the filter', () => evalIn((pop) => !!document.querySelector(`${pop} .rm-choose-filter__includes .rm-filter-button`), pop), 10000);
+  await roam.page.locator(`${pop} .rm-choose-filter__includes .rm-filter-button button`).first().click();
+  await roam.page.keyboard.press('Escape');
+  await sleep(500);
 
   // 5. A page no note is: a note with a similar name, the letter that differs marked.
   await openPage(SIMILAR_PAGE);

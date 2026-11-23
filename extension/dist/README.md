@@ -44,6 +44,15 @@ frontmatter, as the spec asks bundles to have:
 - Reference-style links (`[text][ref]` with `[ref]: target.md` below) are read as the links they stand
   for, and the lines that define them are hidden, as in Obsidian's reading view.
 
+Here a bundle of seed suppliers sits in a garden vault. The page **Supplier** lists the bundle's notes of
+that type, each by its title:
+
+![The page Supplier, listing an OKF note by its title, with its type drawn as a page reference](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/okf-type-page.png)
+
+Click the title to open the note under its OKF name, with its `type` and `status` as page references:
+
+![An OKF note open in Roam's main window under its title, Heritage Seed Company](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/okf-note.png)
+
 </details>
 
 ## What it shows
@@ -99,6 +108,20 @@ is drawn as in Linked References, and works the same way:
 
 Notes exported from Roam as Markdown come out with the same blocks, paths and links they had in Roam.
 
+### Embeds and links to blocks
+
+An embedded block, a link to a block and an embedded heading, each as Roam draws its own. The block ids
+(`^seaweed`) are hidden, as in Obsidian:
+
+![A block embed, a block reference and a heading embed from vault notes, on the page Greenhouse](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/embeds.png)
+
+### Properties are pages
+
+A frontmatter property's name is a page, as an attribute's is in Roam. The page **sunlight** lists every
+note with a `sunlight` property, each drawn as the attribute block:
+
+![The page sunlight, listing two notes with a sunlight property as attribute blocks](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/property-page.png)
+
 Click a note title or a line's bullet to open the whole note in Roam's main window, as a page opens. Back
 returns to where you were, and links between notes work inside it. Shift-click opens the note over the page
 instead. If you use Obsidian, click **Open in Obsidian** beside the note's title to jump to the note there. To use another
@@ -106,9 +129,20 @@ editor, see [Opening notes in another editor](#opening-notes-in-another-editor).
 
 ![A note in the main window, opened from a line, with an Open in Obsidian button](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/note-viewer.png)
 
+### Search and filter
+
 The section's header has the same search box and filter as Linked References. Search narrows the lines to
-those with the words you type. The filter lists the pages the lines link to: click one to keep only the
-lines that link to it, shift-click to hide them. The filter stays with the page while Roam is open.
+those with the words you type, and marks them as Roam marks its own:
+
+![The section searched for "bed", its header counting the lines left](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/search.png)
+
+The filter lists the pages the lines link to, with how many lines link to each. Click one to keep only the
+lines that link to it, or shift-click to hide them. The filter icon turns red while a filter is on, and the
+filter stays with the page while Roam is open.
+
+![The filter open on the section, listing the pages its lines link to](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/filter.png)
+
+![The section filtered to the lines that link to Blight](https://raw.githubusercontent.com/sweenzor/roam-vaults/ed6254a358567e360e8625c57a0364c11775dd9b/docs/images/filtered.png)
 
 ### Notes with a similar name
 
