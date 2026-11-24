@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-11-24)
 
 - The README has a section and a picture, taken in real Roam, for embeds and block links, property pages,
   OKF bundles, and the section's search and filter.
