@@ -2,10 +2,7 @@
 
 ## 0.3.0 (2026-11-24)
 
-- The README has a section and a picture, taken in real Roam, for embeds and block links, property pages,
-  OKF bundles, and the section's search and filter.
-- A vault can still be just a folder of Markdown files, with no `.obsidian` folder and no OKF index: the
-  real-Roam test now checks one with nested folders, a wikilink and a relative Markdown link.
+Vaults on Roam Depot goes from 0.1.1 to 0.3.0: the changes of 0.2.0, below, come with it.
 
 - External Vault References are drawn like Roam's Linked References. A line that links to the page is a
   Roam block with the headings and list items it sits under as a path above it; click a part of the path
@@ -70,6 +67,10 @@
   the folder in grey. For a page `A/B`, the folder's path must end in `A/B`. Thanks to Daniel Rahal
   (@danhrahal) for the idea and the matching.
 - Note titles no longer show a hover tooltip.
+- A vault can still be just a folder of Markdown files, with no `.obsidian` folder and no OKF index: the
+  real-Roam test now checks one with nested folders, a wikilink and a relative Markdown link.
+- The README has a section and a picture, taken in real Roam, for embeds and block links, property pages,
+  OKF bundles, and the section's search and filter.
 
 ## 0.2.0 (2026-11-22)
 
