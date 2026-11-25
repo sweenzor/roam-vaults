@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A note open in the main window no longer gets in the way of going elsewhere. Going to the page or the
+  Daily Notes it was opened from, from the left sidebar, a link or another extension's buttons (such as
+  Yesterday & Tomorrow's Today), now shows that place; before, nothing happened. Back from a page you
+  went to from a note comes back to the note and stays there; before, Roam went forward again.
+
 ## 0.3.0 (2026-11-24)
 
 Vaults on Roam Depot goes from 0.1.1 to 0.3.0: the changes of 0.2.0, below, come with it.

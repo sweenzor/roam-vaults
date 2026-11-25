@@ -230,6 +230,52 @@ async function main() {
     return false;
   }));
 
+  // a note opened in the main window, then left by every way to a place: Roam keeps a component in
+  // its main window until it goes somewhere else, and does nothing when asked for the place it is on
+  const where = () => evalIn(async () => { const v = await window.roamAlphaAPI.ui.mainWindow.getOpenView(); return v.type === 'custom' ? 'note' : v.type === 'log' ? 'Daily Notes' : document.querySelector('.roam-article .rm-title-display')?.textContent.trim(); });
+  const reach = (want, ms = 8000) => waitFor(want, async () => (await where()) === want, ms).then(() => sleep(800)).then(where, where);
+  const lineBullet = (text, scope = '.roam-article') => roam.page.locator(`${scope} .rv-panel .rm-reference-item`, { hasText: text }).locator('.rm-bullet').first().click();
+  await openPage(TEST_PAGE);
+  await lineBullet('backlink line');
+  check('A click on a line\'s bullet opens its note in the main window', await reach('note') === 'note');
+  await shot('note-in-main-window');
+  await evalIn((t) => window.roamAlphaAPI.ui.mainWindow.openPage({ page: { title: t } }), TEST_PAGE);
+  check('Asking for the page the note was opened from shows that page', await reach(TEST_PAGE) === TEST_PAGE);
+  await roam.page.goForward();
+  check('Forward shows the note again', await reach('note') === 'note');
+  await roam.page.locator('.rm-left-sidebar__daily-notes').dispatchEvent('click');
+  check('Daily Notes in the left sidebar leaves the note', await reach('Daily Notes') === 'Daily Notes');
+  await roam.page.goBack();
+  check('Back comes back to the note, and stays', await reach('note') === 'note' && (await sleep(2000), await where()) === 'note');
+  await roam.page.goBack();
+  check('Back again shows the page the note was opened from', await reach(TEST_PAGE) === TEST_PAGE);
+  // from the Daily Notes, as another extension's buttons go there (Yesterday & Tomorrow calls
+  // openDailyNotes for the Daily Notes and openBlock for a day)
+  const today = await evalIn(() => window.roamAlphaAPI.util.dateToPageTitle(new Date()));
+  const daybook = path.join(small, 'Daybook.md');
+  fs.writeFileSync(daybook, `- Starter fed at dawn, [[${today}]]\n`);
+  await evalIn(() => window.roamAlphaAPI.ui.mainWindow.openDailyNotes());
+  const onLog = await waitFor('the note on the Daily Notes', () => evalIn(() => !!document.querySelector('.roam-log-container .rv-panel .rm-reference-item')), 20000).then(() => true, () => false);
+  if (onLog) {
+    await lineBullet('Starter fed at dawn', '.roam-log-container');
+    check('A note opens from the Daily Notes', await reach('note') === 'note');
+    await roam.page.locator('.rm-left-sidebar__daily-notes').dispatchEvent('click');
+    check('Daily Notes in the left sidebar shows the Daily Notes it was opened from', await reach('Daily Notes') === 'Daily Notes');
+    await roam.page.goForward();
+    check('Forward shows the note again', await reach('note') === 'note');
+    await evalIn(() => window.roamAlphaAPI.ui.mainWindow.openDailyNotes());
+    check('openDailyNotes shows the Daily Notes', await reach('Daily Notes') === 'Daily Notes');
+    await evalIn(() => window.roamAlphaAPI.ui.mainWindow.openBlock({ block: { uid: window.roamAlphaAPI.util.dateToPageUid(new Date()) } }));
+    await reach(today);
+    await lineBullet('Starter fed at dawn');
+    check("A note opens from today's page", await reach('note') === 'note');
+    await evalIn(() => window.roamAlphaAPI.ui.mainWindow.openBlock({ block: { uid: window.roamAlphaAPI.util.dateToPageUid(new Date()) } }));
+    check("openBlock of today shows today's page", await reach(today) === today);
+  } else check('A note linking today shows on the Daily Notes', false);
+  fs.rmSync(daybook);
+  await openPage(TEST_PAGE);
+  await waitFor('the Daybook note to go', async () => !(await panelText()).includes('Starter fed'), 20000).catch(() => {});
+
   // a folder named like the page: its notes are listed like any note, added and removed while Roam is open
   const folder = path.join(small, 'Projects', TEST_PAGE);
   const before = Number((await panelText()).match(/(\d+) External Vault References/)?.[1] ?? 0);
