@@ -6,6 +6,8 @@
   Daily Notes it was opened from, from the left sidebar, a link or another extension's buttons (such as
   Yesterday & Tomorrow's Today), now shows that place; before, nothing happened. Back from a page you
   went to from a note comes back to the note and stays there; before, Roam went forward again.
+- A line that is only a link, such as a daily note's `[[November 25th, 2026]]` with notes under it, shows
+  those notes from the start, as Roam's Linked References show such a block.
 
 ## 0.3.0 (2026-11-24)
 

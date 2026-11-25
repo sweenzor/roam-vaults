@@ -433,3 +433,19 @@ export function lineOfSub(text: string, sub: string): number | undefined {
   }
   return undefined;
 }
+
+/** Is a block's text nothing but links to pages? Roam's Linked References show such a block's
+ *  children from the start, even when the block is closed in the graph (measured in Roam,
+ *  2026-11-25): `[[A]]`, `#[[A]]`, `#A`, `[[A]] [[B]]`, with spaces and `.` `,` `:` `!` `+` `&` around
+ *  them, are open; any other text (words, `TODO`, `**[[A]]**`, `-`, `;`, `?`, `[a]([[A]])`) keeps it
+ *  closed. A note's `[[A|shown]]` is Roam's `[shown]([[A]])`, so it keeps it closed too; an
+ *  Obsidian block id at the end is not text, nor a heading's #s. */
+export function linksOnly(text: string): boolean {
+  let links = 0;
+  const rest = text
+    .replace(/^#{1,6}[ \t]+/, '') // a heading: in Roam a block's heading is not its text
+    .replace(/[ \t]\^[A-Za-z0-9-]+[ \t]*$/, '')
+    .replace(/(?<!!)(?:#)?\[\[[^\]|\n]+\]\]/g, () => { links++; return ' '; })
+    .replace(/(^|\s)#[\p{L}\p{N}_/-]+/gu, (m, s) => { links++; return s; });
+  return links > 0 && /^[\s.,:!+&]*$/.test(rest);
+}
