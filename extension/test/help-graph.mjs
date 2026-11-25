@@ -58,6 +58,11 @@ const STEPS = ['Mix', 'Rest', 'Knead', 'Butter in', 'Knead again', 'Bulk', 'Fold
 const TABLE = [['Loaf', 'Flour', 'Hours'], ['**Brioche**', 'white [[T45]]', '16'], ['Rye', 'dark', '18']];
 // A block that names another block: Roam's ((uid)), Obsidian's [[Note#^id]]. And a link to a heading.
 const COLD = 'Cold proof: **18 hours** at 4°';
+/** A day as Roam titles its daily note: "July 9th, 2026". */
+function roamDate(d) {
+  const n = d.getDate(), th = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th';
+  return `${d.toLocaleString('en-US', { month: 'long' })} ${n}${th}, ${d.getFullYear()}`;
+}
 const FILES = {
   'Proofing.md': `## Warm\n\n- two hours at 26°\n\n## Cold\n\n- ${COLD} ^cold\n`,
   'Rota.md': '- [[Focaccia]] goes in after ((the cold proof))\n- [[Focaccia]] timing: see [[Proofing#Cold]]\n'.replace('((the cold proof))', '[[Proofing#^cold]]'),
@@ -74,7 +79,9 @@ const FILES = {
   'kb/orders/rye.md': '---\ntype: Order\ntitle: Weekly rye order\n---\nTwenty sacks.\n',
   // a long note: a day of bakes, longer than the window
   [LONG_NOTE]: Array.from({ length: 60 }, (_, i) => `- Batch ${i + 1}: ${20 + (i * 7) % 30} loaves out at ${String(5 + (i >> 2)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}\n`).join(''),
-  'Wholesale.md': exported(PAGES.Wholesale), 'Days/2026/July 9th, 2026.md': exported(PAGES['July 9th, 2026']), 'Sourdough.md': exported(PAGES[PAGE]) };
+  'Wholesale.md': exported(PAGES.Wholesale), 'Days/2026/July 9th, 2026.md': exported(PAGES['July 9th, 2026']), 'Sourdough.md': exported(PAGES[PAGE]),
+  // a note that links today's daily note, so a note can be opened from the Daily Notes
+  'Daybook.md': `- Starter fed at dawn, [[${roamDate(new Date())}]]\n` };
 
 const browser = await chromium.launch({ env: { ...process.env, LC_ALL: 'C.UTF-8' } });
 const page = await (await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2 })).newPage();
@@ -345,6 +352,45 @@ await page.locator('.rv-panel .rm-reference-item', { hasText: 'trial bake' }).lo
 await page.waitForSelector('.rv-viewer .block-highlight-yellow');
 check('shift-click on a bullet opens the note over the page', (await page.locator('.rv-note-page').count()) === 0);
 await page.keyboard.press('Escape');
+
+// ---------- leaving a note: every way to a place in the main window goes there ----------
+// Roam keeps a component in its main window until it goes somewhere else, and does nothing when
+// asked for the place it is on; a note is drawn in place of the page it was opened from.
+const view = () => page.evaluate(async () => { const v = await window.roamAlphaAPI.ui.mainWindow.getOpenView(); return v.type === 'custom' ? 'note' : v.type === 'log' ? 'Daily Notes' : document.querySelector('.roam-article .rm-title-display')?.textContent; });
+const settle = async (want) => { await page.waitForFunction(async (want) => { const v = await window.roamAlphaAPI.ui.mainWindow.getOpenView(); return (v.type === 'custom' ? 'note' : v.type === 'log' ? 'Daily Notes' : document.querySelector('.roam-article .rm-title-display')?.textContent) === want; }, want, { timeout: 5000 }).catch(() => {}); await page.waitForTimeout(500); return view(); };
+const bullet = (text) => page.locator('.rv-panel .rm-reference-item', { hasText: text }).locator('.rm-bullet').first().click();
+await bullet('trial bake');
+check('a note opened from a page', await settle('note') === 'note');
+await page.evaluate((title) => window.roamAlphaAPI.ui.mainWindow.openPage({ page: { title } }), PAGE);
+check('asking for that page again shows the page', await settle(PAGE) === PAGE);
+await page.goForward();
+check('and Forward shows the note again', await settle('note') === 'note');
+await page.evaluate(() => window.roamAlphaAPI.ui.mainWindow.openPage({ page: { title: 'Focaccia' } }));
+check('another page leaves the note', await settle('Focaccia') === 'Focaccia');
+await page.goBack();
+check('Back from there comes back to the note, and stays', await settle('note') === 'note' && (await page.waitForTimeout(1500), await view()) === 'note');
+await page.goBack();
+check('Back again shows the page it was opened from', await settle(PAGE) === PAGE);
+// from the Daily Notes: Roam's left sidebar, and the call another extension's buttons make
+// (Yesterday & Tomorrow: openDailyNotes for the log, openBlock for a day)
+await page.evaluate(() => window.roamAlphaAPI.ui.mainWindow.openDailyNotes());
+await page.waitForSelector('.roam-log-container .rv-panel .rm-reference-item', { timeout: 15000 });
+await bullet('Starter fed at dawn');
+check('a note opened from the Daily Notes', await settle('note') === 'note');
+await shot('9-note-from-daily-notes.png', '.roam-main');
+await page.locator('.rm-left-sidebar__daily-notes').dispatchEvent('click');
+check('Daily Notes in the left sidebar shows the Daily Notes', await settle('Daily Notes') === 'Daily Notes');
+await page.goForward();
+check('Forward shows the note again', await settle('note') === 'note');
+await page.evaluate(() => window.roamAlphaAPI.ui.mainWindow.openDailyNotes());
+check('openDailyNotes shows the Daily Notes', await settle('Daily Notes') === 'Daily Notes');
+const today = roamDate(new Date());
+await open(today);
+await page.waitForSelector('.rv-panel .rm-reference-item');
+await bullet('Starter fed at dawn');
+check('a note opened from today\'s page', await settle('note') === 'note');
+await page.evaluate((uid) => window.roamAlphaAPI.ui.mainWindow.openBlock({ block: { uid } }), await page.evaluate(() => window.roamAlphaAPI.util.dateToPageUid(new Date())));
+check('openBlock of today shows today\'s page', await settle(today) === today);
 
 // ---------- a block that names another block, and a link to a heading ----------
 await open('Focaccia');

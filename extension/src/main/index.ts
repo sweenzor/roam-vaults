@@ -390,21 +390,93 @@ function showNote(v: Vault, path: string, line?: number): boolean {
   const args: NoteArgs = { vault: v.id, path, line: line ?? null, n: ++shown };
   try {
     history.pushState({ rvNote: args }, '', location.href);
+    opening++;
     main.openComponent(NOTE, args);
     return true;
   } catch { return false; }
 }
-let noteRegistered = false;
+let noteRegistered = false, opening = 0;
+/** The main window shows a note. */
+const noteOpen = () => !!document.querySelector(`.rv-note-page[${ATTR}]:not(.rv-viewer *)`);
 /** Leave the note, if the main window shows one: Roam draws the page it is on again. */
 async function closeNote() {
   const main = window.roamAlphaAPI?.ui?.mainWindow;
   try { if ((await main.getOpenView?.())?.id === NOTE) await main.closeComponent(); } catch { /* Roam shows what it has */ }
 }
-function onPop(e: PopStateEvent) {
-  const main = window.roamAlphaAPI?.ui?.mainWindow;
+/** Roam has caught up with the address: it shows the page, block or Daily Notes the address names
+ *  (or still a component, when the address did not change). */
+async function routed(): Promise<boolean> {
+  const v = await window.roamAlphaAPI.ui.mainWindow.getOpenView();
+  if (v?.type === 'custom') return true;
+  const uid = location.hash.match(/\/page\/([^/?]+)/)?.[1];
+  if (uid) return v?.uid === uid;
+  if (/^#\/(?:app|offline)\/[^/?]+$/.test(location.hash)) return v?.type === 'log';
+  return true;
+}
+/** Back or Forward to a note's entry. Roam is still on the place it was on when the address
+ *  changes, and goes to the new one a moment later; a note opened before that would be dropped as
+ *  Roam leaves, and Roam would put the old address back. So the note waits for Roam. */
+async function onPop(e: PopStateEvent) {
   const args = e.state?.rvNote as NoteArgs | undefined;
-  if (args && vaults.some((v) => v.id === args.vault)) { try { main.openComponent(NOTE, { ...args, n: ++shown }); } catch { /* Roam shows what it has */ } }
-  else closeNote();
+  const mine = ++opening;
+  if (!args || !vaults.some((v) => v.id === args.vault)) { closeNote(); return; }
+  const until = Date.now() + 3000;
+  while (Date.now() < until) {
+    try { if (await routed()) break; } catch { break; }
+    await new Promise((r) => setTimeout(r, 16));
+  }
+  if (mine !== opening) return; // the window went on elsewhere meanwhile
+  try { window.roamAlphaAPI.ui.mainWindow.openComponent(NOTE, { ...args, n: ++shown }); } catch { /* Roam shows what it has */ }
+}
+
+/* Roam keeps a component it draws in its main window until it goes somewhere else, and going to
+ * the place it is on does nothing. A note is drawn in place of the page (or the Daily Notes) it was
+ * opened from, so asking for that place again would leave the note up: the Daily Notes from the
+ * left sidebar or another extension's date buttons, a link to the page. So after each such request,
+ * when the note is still up and the address the same, the note gives way to that place, as Back
+ * would: its history entry goes too. Requests are the main window's open calls (other extensions,
+ * and this one's own links) and clicks on Roam's own ways to a place. */
+function leaveIfStayed(at: string, entry: number | undefined) {
+  if (!noteOpen()) return;
+  setTimeout(() => {
+    if (!noteOpen() || location.href !== at || (history.state?.rvNote as NoteArgs | undefined)?.n !== entry) return; // it went elsewhere
+    opening++;
+    if (entry !== undefined) history.back(); // to the same address without the note
+    else closeNote();
+  }, 300);
+}
+const NAV = ['openPage', 'openBlock', 'openDailyNotes'] as const;
+/** Where a click asks Roam's main window to go to a place: the left sidebar's rows, page links and
+ *  tags, a sidebar window's title, a search result. */
+const NAV_CLICK = '.roam-sidebar-container .log-button, .roam-sidebar-container .page, .rm-page-ref, [data-link-title], .rm-sidebar-window .rm-title-display, .rm-search-list-item';
+function watchNavigation(): () => void {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  const own = new Map<string, Function>(), was = new Map<string, Function>();
+  for (const k of NAV) {
+    const f = main?.[k];
+    if (typeof f !== 'function') continue;
+    const g = function (this: unknown, ...a: unknown[]) {
+      const at = location.href, entry = (history.state?.rvNote as NoteArgs | undefined)?.n, open = noteOpen();
+      const r = f.apply(this, a);
+      if (open) Promise.resolve(r).then(() => leaveIfStayed(at, entry), () => {});
+      return r;
+    };
+    try { main[k] = g; own.set(k, g); was.set(k, f); } catch { /* left as Roam made it */ }
+  }
+  const onClick = (e: MouseEvent) => {
+    if (e.button || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || !noteOpen()) return;
+    const t = e.target instanceof Element ? e.target : null;
+    if (!t?.closest(NAV_CLICK) || t.closest(`.rv-note-page[${ATTR}]`)) return; // the note's own links open through the API
+    leaveIfStayed(location.href, (history.state?.rvNote as NoteArgs | undefined)?.n);
+  };
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter' && (e.target as Element | null)?.closest?.('.rm-find-or-create-wrapper, .rm-search-list-item') && noteOpen()) leaveIfStayed(location.href, (history.state?.rvNote as NoteArgs | undefined)?.n); };
+  document.addEventListener('click', onClick, true);
+  document.addEventListener('keydown', onKey, true);
+  return () => {
+    document.removeEventListener('click', onClick, true);
+    document.removeEventListener('keydown', onKey, true);
+    for (const [k, g] of own) if (main[k] === g) { try { main[k] = was.get(k); } catch { /* gone with Roam */ } }
+  };
 }
 function registerNote(): () => void {
   const main = window.roamAlphaAPI?.ui?.mainWindow;
@@ -412,8 +484,11 @@ function registerNote(): () => void {
   try { main.registerComponent(NOTE, NoteView); } catch { return () => {}; }
   noteRegistered = true;
   window.addEventListener('popstate', onPop);
+  const unwatch = watchNavigation();
   return () => {
     noteRegistered = false;
+    opening++;
+    unwatch();
     window.removeEventListener('popstate', onPop);
     closeNote().then(() => { try { main.unregisterComponent(NOTE); } catch { /* gone with Roam */ } });
   };

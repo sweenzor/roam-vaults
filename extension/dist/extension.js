@@ -2692,6 +2692,7 @@ function showNote(v, path, line) {
   const args = { vault: v.id, path, line: line ?? null, n: ++shown };
   try {
     history.pushState({ rvNote: args }, "", location.href);
+    opening++;
     main.openComponent(NOTE, args);
     return true;
   } catch {
@@ -2699,6 +2700,8 @@ function showNote(v, path, line) {
   }
 }
 var noteRegistered = false;
+var opening = 0;
+var noteOpen = () => !!document.querySelector(`.rv-note-page[${ATTR}]:not(.rv-viewer *)`);
 async function closeNote() {
   const main = window.roamAlphaAPI?.ui?.mainWindow;
   try {
@@ -2706,15 +2709,88 @@ async function closeNote() {
   } catch {
   }
 }
-function onPop(e) {
-  const main = window.roamAlphaAPI?.ui?.mainWindow;
+async function routed() {
+  const v = await window.roamAlphaAPI.ui.mainWindow.getOpenView();
+  if (v?.type === "custom") return true;
+  const uid = location.hash.match(/\/page\/([^/?]+)/)?.[1];
+  if (uid) return v?.uid === uid;
+  if (/^#\/(?:app|offline)\/[^/?]+$/.test(location.hash)) return v?.type === "log";
+  return true;
+}
+async function onPop(e) {
   const args = e.state?.rvNote;
-  if (args && vaults.some((v) => v.id === args.vault)) {
+  const mine = ++opening;
+  if (!args || !vaults.some((v) => v.id === args.vault)) {
+    closeNote();
+    return;
+  }
+  const until = Date.now() + 3e3;
+  while (Date.now() < until) {
     try {
-      main.openComponent(NOTE, { ...args, n: ++shown });
+      if (await routed()) break;
+    } catch {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 16));
+  }
+  if (mine !== opening) return;
+  try {
+    window.roamAlphaAPI.ui.mainWindow.openComponent(NOTE, { ...args, n: ++shown });
+  } catch {
+  }
+}
+function leaveIfStayed(at, entry) {
+  if (!noteOpen()) return;
+  setTimeout(() => {
+    if (!noteOpen() || location.href !== at || history.state?.rvNote?.n !== entry) return;
+    opening++;
+    if (entry !== void 0) history.back();
+    else closeNote();
+  }, 300);
+}
+var NAV = ["openPage", "openBlock", "openDailyNotes"];
+var NAV_CLICK = ".roam-sidebar-container .log-button, .roam-sidebar-container .page, .rm-page-ref, [data-link-title], .rm-sidebar-window .rm-title-display, .rm-search-list-item";
+function watchNavigation() {
+  const main = window.roamAlphaAPI?.ui?.mainWindow;
+  const own = /* @__PURE__ */ new Map(), was = /* @__PURE__ */ new Map();
+  for (const k of NAV) {
+    const f = main?.[k];
+    if (typeof f !== "function") continue;
+    const g = function(...a) {
+      const at = location.href, entry = history.state?.rvNote?.n, open4 = noteOpen();
+      const r = f.apply(this, a);
+      if (open4) Promise.resolve(r).then(() => leaveIfStayed(at, entry), () => {
+      });
+      return r;
+    };
+    try {
+      main[k] = g;
+      own.set(k, g);
+      was.set(k, f);
     } catch {
     }
-  } else closeNote();
+  }
+  const onClick = (e) => {
+    if (e.button || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || !noteOpen()) return;
+    const t = e.target instanceof Element ? e.target : null;
+    if (!t?.closest(NAV_CLICK) || t.closest(`.rv-note-page[${ATTR}]`)) return;
+    leaveIfStayed(location.href, history.state?.rvNote?.n);
+  };
+  const onKey2 = (e) => {
+    if (e.key === "Enter" && e.target?.closest?.(".rm-find-or-create-wrapper, .rm-search-list-item") && noteOpen()) leaveIfStayed(location.href, history.state?.rvNote?.n);
+  };
+  document.addEventListener("click", onClick, true);
+  document.addEventListener("keydown", onKey2, true);
+  return () => {
+    document.removeEventListener("click", onClick, true);
+    document.removeEventListener("keydown", onKey2, true);
+    for (const [k, g] of own) if (main[k] === g) {
+      try {
+        main[k] = was.get(k);
+      } catch {
+      }
+    }
+  };
 }
 function registerNote() {
   const main = window.roamAlphaAPI?.ui?.mainWindow;
@@ -2728,8 +2804,11 @@ function registerNote() {
   }
   noteRegistered = true;
   window.addEventListener("popstate", onPop);
+  const unwatch = watchNavigation();
   return () => {
     noteRegistered = false;
+    opening++;
+    unwatch();
     window.removeEventListener("popstate", onPop);
     closeNote().then(() => {
       try {
