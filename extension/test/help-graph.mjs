@@ -52,6 +52,7 @@ function picture() {
   const head = Buffer.alloc(13); head.writeUInt32BE(W, 0); head.writeUInt32BE(H, 4); head.set([8, 2, 0, 0, 0], 8);
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
+const LONG_DAY = 'July 10th, 2026', LONG_NOTE = `Days/2026/${LONG_DAY}.md`;
 const STEPS = ['Mix', 'Rest', 'Knead', 'Butter in', 'Knead again', 'Bulk', 'Fold', 'Chill', 'Shape', 'Proof', 'Egg wash', 'Bake'];
 const TABLE = [['Loaf', 'Flour', 'Hours'], ['**Brioche**', 'white [[T45]]', '16'], ['Rye', 'dark', '18']];
 // A block that names another block: Roam's ((uid)), Obsidian's [[Note#^id]]. And a link to a heading.
@@ -70,6 +71,8 @@ const FILES = {
   'kb/index.md': '---\nokf_version: "0.3"\ntitle: Bakery suppliers\n---\n# Mills\n\n* [Stone Mill](mills/stone-mill.md)\n',
   'kb/mills/stone-mill.md': '---\ntype: Supplier\ntitle: Stone Mill\nstatus: stable\n---\n# Flour\n\nRye and spelt, delivered on Mondays.[^early] See [the rye order][rye].\n\n[rye]: ../orders/rye.md\n[^early]: Before seven in the morning.\n',
   'kb/orders/rye.md': '---\ntype: Order\ntitle: Weekly rye order\n---\nTwenty sacks.\n',
+  // a long note: a day of bakes, longer than the window
+  [LONG_NOTE]: Array.from({ length: 60 }, (_, i) => `- Batch ${i + 1}: ${20 + (i * 7) % 30} loaves out at ${String(5 + (i >> 2)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}\n`).join(''),
   'Wholesale.md': exported(PAGES.Wholesale), 'Days/2026/July 9th, 2026.md': exported(PAGES['July 9th, 2026']), 'Sourdough.md': exported(PAGES[PAGE]) };
 
 const browser = await chromium.launch({ env: { ...process.env, LC_ALL: 'C.UTF-8' } });
@@ -83,7 +86,7 @@ await page.waitForTimeout(3000);
 await page.addStyleTag({ content: '.bp3-portal .bp3-toast-container{display:none!important}' }); // the help graph's own warning
 
 // the pages, in the graph's memory
-await page.evaluate(async ({ PAGES, COLD, STEPS, TABLE }) => {
+await page.evaluate(async ({ PAGES, COLD, STEPS, TABLE, LONG_DAY }) => {
   const api = window.roamAlphaAPI;
   let n = 0;
   const add = async (parent, blocks) => {
@@ -100,6 +103,7 @@ await page.evaluate(async ({ PAGES, COLD, STEPS, TABLE }) => {
     await add(api.pull('[:block/uid]', [':node/title', title])[':block/uid'], blocks);
   }
   await api.createPage({ page: { title: 'Supplier', uid: 'rvhgsuppl' } });
+  if (!api.pull('[:block/uid]', [':node/title', LONG_DAY])) await api.createPage({ page: { title: LONG_DAY, uid: '07-10-2026' } });
   if (!api.pull('[:block/uid]', [':node/title', 'Oven'])) await api.createPage({ page: { title: 'Oven', uid: 'rvhgoven0' } });
   await api.createPage({ page: { title: 'Proofing', uid: 'rvhgproof' } });
   await api.createBlock({ location: { 'parent-uid': 'rvhgproof', order: 0 }, block: { string: 'Warm', uid: 'rvhgwarm0', heading: 2, open: true } });
@@ -119,7 +123,7 @@ await page.evaluate(async ({ PAGES, COLD, STEPS, TABLE }) => {
     await api.createBlock({ location: { 'parent-uid': 'rvhgembed', order: i }, block: { string, uid: 'rvhgembe' + i } });
   await api.createPage({ page: { title: 'Rota', uid: 'rvhgrota1' } });
   await api.createBlock({ location: { 'parent-uid': 'rvhgrota1', order: 0 }, block: { string: '[[Focaccia]] goes in after ((rvhgcold1))', uid: 'rvhgrota2' } });
-}, { PAGES, COLD, STEPS, TABLE });
+}, { PAGES, COLD, STEPS, TABLE, LONG_DAY });
 
 // the vault, in the browser's private file system, connected through the folder picker (stubbed)
 await page.evaluate(async ({ FILES, code }) => {
@@ -290,6 +294,35 @@ await page.locator('.rv-panel .rv-group-caret').first().click();
 await page.waitForSelector('.rv-panel .rv-preview .roam-block-container');
 check('the note that is the page unfolds into its blocks', JSON.stringify(await page.locator('.rv-panel .rv-preview .rm-block-text').allInnerTexts()) === JSON.stringify(PAGES[PAGE].map((b) => b[0])));
 await shot('6-note-unfolded.png');
+// A long note, unfolded: the wheel over it scrolls the page, as over Roam's own references (a grey
+// reference box in Roam has no scroll of its own, however long the block under it is).
+await open(LONG_DAY);
+await page.waitForSelector('.rv-panel .rm-reference-item, .rv-panel .rv-group-caret');
+await page.locator('.rv-panel .rv-group', { hasText: LONG_DAY }).locator('.rv-group-caret').first().click();
+await page.waitForFunction(() => document.querySelectorAll('.rv-panel .rv-preview .roam-block-container').length >= 60, null, { timeout: 10000 });
+{
+  const box = page.locator('.rv-panel .rv-preview').first();
+  // the page's own scroller: the box's nearest parent that scrolls
+  const state = () => box.evaluate((el) => {
+    let s = el.parentElement; while (s && !/(auto|scroll)/.test(getComputedStyle(s).overflowY)) s = s.parentElement;
+    return { page: s?.scrollTop ?? -1, box: el.scrollTop, boxScrolls: /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1 };
+  });
+  await box.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await page.waitForTimeout(300);
+  const before = await state();
+  const r = await box.boundingBox();
+  await page.mouse.move(r.x + r.width / 2, Math.min(r.y + 200, 900));
+  await page.mouse.wheel(0, 400);
+  await page.waitForTimeout(600);
+  const after = await state();
+  check('a long note unfolded has no scroll of its own', !after.boxScrolls && after.box === 0, JSON.stringify(after));
+  check('the wheel over an unfolded note scrolls the page', after.page > before.page, `${before.page} -> ${after.page}`);
+  await page.screenshot({ path: path.join(OUT, '6b-long-note-scrolled.png') });
+}
+await open(PAGE);
+await page.waitForSelector('.rv-panel .rm-reference-item');
+// Roam's own reference boxes, for the record: no scroll of their own either
+check('Roam\'s reference boxes have no scroll of their own', await page.evaluate(() => { const els = [...document.querySelectorAll('.rm-reference-container .rm-reference-item')]; return els.length > 0 && els.every((e) => !/(auto|scroll)/.test(getComputedStyle(e).overflowY)); }));
 // the bullet opens the note at that block
 await page.locator('.rv-panel .rm-reference-item', { hasText: 'trial bake' }).locator('.rm-bullet').first().click();
 await page.waitForSelector('.rv-note-page .roam-block-container');

@@ -138,7 +138,8 @@ async function main() {
   // vaults first, so writing them doesn't disturb the memory numbers
   const small = path.join(WORK, SMALL), big = path.join(WORK, BIG);
   const smallFiles = {
-    [`${TEST_PAGE}.md`]: `# ${TEST_PAGE}\nThe note for this page. See [[CI linked note]].\n`,
+    // long enough to run past the window: the wheel over it unfolded must scroll the page
+    [`${TEST_PAGE}.md`]: `# ${TEST_PAGE}\nThe note for this page. See [[CI linked note]].\n${Array.from({ length: 60 }, (_, i) => `- Line ${i + 1} of a long note\n`).join('')}`,
     'Notes/CI linked note.md': `Mentions [[${TEST_PAGE}]] in a backlink line.\n`,
     'Daily/2026-01-02.md': `- met about [[${TEST_PAGE}|the CI page]]\n`,
     [`Notes/${FUZZY_NOTE}.md`]: 'A note whose name has a typo.\n',
@@ -193,6 +194,23 @@ async function main() {
   await roam.page.locator('.roam-article .rv-group-caret').first().click().catch(() => {});
   const unfolded = await waitFor('the counterpart note to unfold', () => evalIn(() => document.querySelector('.roam-article .rv-preview')?.innerText.includes('The note for this page')), 5000).catch(() => false);
   check('Unfolding a note shows it inline', unfolded);
+  { // the wheel over the unfolded note scrolls the page, as over Roam's own references
+    const box = roam.page.locator('.roam-article .rv-preview').first();
+    const state = () => box.evaluate((el) => {
+      let s = el.parentElement; while (s && !/(auto|scroll)/.test(getComputedStyle(s).overflowY)) s = s.parentElement;
+      return { page: s?.scrollTop ?? -1, box: el.scrollTop, own: /(auto|scroll)/.test(getComputedStyle(el).overflowY) };
+    }).catch(() => null);
+    await box.evaluate((el) => el.scrollIntoView({ block: 'start' })).catch(() => {});
+    await sleep(300);
+    const before = await state(), r = await box.boundingBox().catch(() => null);
+    if (r) { await roam.page.mouse.move(r.x + r.width / 2, r.y + Math.min(200, r.height / 2)); await roam.page.mouse.wheel(0, 400); }
+    await sleep(800);
+    const after = await state();
+    check('A long note unfolded has no scroll of its own', after && !after.own && after.box === 0, JSON.stringify(after));
+    check('The wheel over an unfolded note scrolls the page', before && after && after.page > before.page, `${before?.page} -> ${after?.page}`);
+    await shot('long-note-wheel');
+    await box.evaluate((el) => el.closest('.rv-panel')?.scrollIntoView({ block: 'start' })).catch(() => {});
+  }
   await shot('page-external-vault-references');
   // the counts line is off until the Reference counts switch is turned on
   check('Reference counts switch turns off (an earlier run may have left it on)', (await setSwitch('Reference counts', false)) === false);
