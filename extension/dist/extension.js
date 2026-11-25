@@ -884,6 +884,17 @@ function lineOfSub(text, sub) {
   }
   return void 0;
 }
+function linksOnly(text) {
+  let links = 0;
+  const rest = text.replace(/^#{1,6}[ \t]+/, "").replace(/[ \t]\^[A-Za-z0-9-]+[ \t]*$/, "").replace(/(?<!!)(?:#)?\[\[[^\]|\n]+\]\]/g, () => {
+    links++;
+    return " ";
+  }).replace(/(^|\s)#[\p{L}\p{N}_/-]+/gu, (m, s) => {
+    links++;
+    return s;
+  });
+  return links > 0 && /^[\s.,:!+&]*$/.test(rest);
+}
 
 // src/core/frontmatter.ts
 var NO_FM = { bodyStart: 0, bodyStartLine: 0, raw: null, props: null, error: null };
@@ -1600,7 +1611,7 @@ function marked(text, from, marks) {
 }
 function referenceEl(block, path, act, find, openTop = false) {
   const inner = h("div", {});
-  const ctx = { ...ctxOf(path, act), find, openTop };
+  const ctx = { ...ctxOf(path, act), find, openTop: openTop || linksOnly(block.text) };
   const show = (up, shown2, mark) => {
     const zoom = h("div", { class: "rm-zoom zoom-mentions-view" }, ...up.map((u, i) => {
       const text = h("span", {});
