@@ -1084,7 +1084,7 @@ var STYLES = `
 .rv-note-open{white-space:nowrap;flex:none;align-self:center}
 .rv-viewer-path{flex:none;padding:4px 16px 0;color:#8a8a99;font-size:12px}
 .rv-viewer-body{min-height:0;padding:8px 20px 20px 4px;overflow:auto}
-.rv-viewer-body.rv-preview{padding:4px 12px 6px 0;max-height:480px;overflow:auto}
+.rv-viewer-body.rv-preview{padding:4px 12px 6px 0;overflow:visible}
 .rv-missing,.rv-missing .rm-page-ref{color:#8a8a99;cursor:default}
 .rv-settings{display:flex;flex-direction:column;gap:10px;width:280px;max-width:100%;min-width:0}
 .rv-settings-list{display:flex;flex-direction:column;gap:6px}
