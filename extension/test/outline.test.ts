@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { contextOf, kidsAt, lineOfSub, MAX_KIDS } from '../src/core/outline.ts';
+import { contextOf, kidsAt, lineOfSub, linksOnly, MAX_KIDS } from '../src/core/outline.ts';
 
 // A page as Roam's Markdown export writes it: "- " blocks, four spaces a level.
 const day = [
@@ -209,4 +209,11 @@ test('a footnote is a block of its own text, and a link to it finds its line', a
   assert.equal(lineOfSub(text, '#[^rye]'), 2);
   assert.equal(lineOfSub(text, '#[^2]'), 3);
   assert.equal(lineOfSub(text, '#[^none]'), undefined);
+});
+
+test('a block that is only links shows its children, as Roam does (measured in Roam, 2026-11-25)', () => {
+  for (const open of ['[[November 25th, 2026]]', '#[[Sourdough]]', '#sourdough', '[[A]] [[B]]', '[[Other]] [[A]]', '[[A]] #b', ' [[A]] ', '[[A]],', '[[A]]:', '[[A]] ...', '[[A]]!', '[[A]]+', '[[A]] & [[B]]', '## [[A]]', '[[A]] ^block-1'])
+    assert.equal(linksOnly(open), true, open);
+  for (const closed of ['[[A]] some text', 'text [[A]]', 'TODO [[A]]', '**[[A]]**', '__[[A]]__', '[[A]] -', '[[A]];', '[[A]]?', '[[A]] :)', '[[A]] 1', '[[A|shown]]', '[shown](A.md)', '![[A]]', 'A:: x', 'plain text', ''])
+    assert.equal(linksOnly(closed), false, closed);
 });

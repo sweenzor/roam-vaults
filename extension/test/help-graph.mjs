@@ -39,7 +39,8 @@ export const PAGES = {
       ]],
     ]],
   ],
-  'July 9th, 2026': [['Oven:: [[Sourdough]] at 250° with steam, __then__ 220° dry'], ['Flour order arrived']],
+  // a block that is only the link: Roam shows its children from the start
+  'July 9th, 2026': [['Oven:: [[Sourdough]] at 250° with steam, __then__ 220° dry'], ['Flour order arrived'], ['[[Sourdough]]', [['levain at 1:5:5']]]],
 };
 /** A page as Roam's Markdown export writes it: "- " blocks, four spaces a level. */
 export const exported = (blocks, depth = 0) => blocks.map(([text, kids = []]) => `${'    '.repeat(depth)}- ${text}\n${exported(kids, depth + 1)}`).join('');
