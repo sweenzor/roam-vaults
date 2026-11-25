@@ -274,7 +274,7 @@ async function main() {
   } else check('A note linking today shows on the Daily Notes', false);
   fs.rmSync(daybook);
   await openPage(TEST_PAGE);
-  await waitFor('the Daybook note to go', async () => !(await panelText()).includes('Starter fed'), 20000).catch(() => {});
+  await waitFor('the page\'s vault references again', async () => /\d+ External Vault References/.test(await panelText()), 20000).catch(() => {});
 
   // a folder named like the page: its notes are listed like any note, added and removed while Roam is open
   const folder = path.join(small, 'Projects', TEST_PAGE);
