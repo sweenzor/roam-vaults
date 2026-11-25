@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A line that is only a link, such as a daily note's `[[November 25th, 2026]]` with notes under it, shows
+  those notes from the start, as Roam's Linked References show such a block.
+
 ## 0.3.0 (2026-11-24)
 
 Vaults on Roam Depot goes from 0.1.1 to 0.3.0: the changes of 0.2.0, below, come with it.

@@ -96,7 +96,9 @@ What the extension copies from Roam, measured in Linked References:
 - A reference is the block, with the blocks above it as a grey path. A click on a part of the path
   opens that block in place: the nearest parent shows all its children, a higher one only the child
   on the path.
-- A block's children are folded behind a caret that shows on hover.
+- A block's children are folded behind a caret that shows on hover, except in a block that is only links (`[[A]]`, `#A`,
+  `[[A]] [[B]]`, with spaces and `.` `,` `:` `!` `+` `&`): its children show from the start, as Roam shows
+  them for such a block (measured 2026-11-25).
 - A click on a link opens the page. Shift-click opens it in the sidebar, ctrl-shift-click opens its
   linked references there, alt-shift-click its graph.
 - A click on a bullet opens the block. A click on text edits it, which Vaults has no equivalent

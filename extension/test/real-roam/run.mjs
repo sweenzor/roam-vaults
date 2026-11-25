@@ -149,7 +149,8 @@ async function main() {
   const plain = path.join(WORK, PLAIN);
   const plainFiles = {
     [`${PLAIN_PAGE}.md`]: `A plain Markdown file for this page.\n`,
-    'Garden/Seed list.md': `- sow carrots, see [[${PLAIN_PAGE}]]\n`,
+    // a line with text keeps its children folded; a line that is only the link shows them, as Roam does
+    'Garden/Seed list.md': `- sow carrots, see [[${PLAIN_PAGE}]]\n    - rows a foot apart\n- [[${PLAIN_PAGE}]]\n    - seedlings up on day nine\n`,
     'Garden/Beds/North bed.md': `Watered on Monday. Notes in [the plain page](../../${PLAIN_PAGE.replace(/ /g, '%20')}.md).\n`,
   };
   for (const [rel, text] of Object.entries(plainFiles)) { fs.mkdirSync(path.dirname(path.join(plain, rel)), { recursive: true }); fs.writeFileSync(path.join(plain, rel), text); }
@@ -287,6 +288,8 @@ async function main() {
   check('Plain vault: the note named like the page is listed first', (await evalIn(() => document.querySelector('.roam-article .rv-panel .rv-note')?.textContent.trim()))?.endsWith(PLAIN_PAGE));
   check('Plain vault: a [[wikilink]] line from a nested folder shows', tp.includes('sow carrots'));
   check('Plain vault: a relative Markdown link two folders down shows', tp.includes('Watered on Monday'));
+  check('Plain vault: a line that is only the link shows its children, as in Roam', tp.includes('seedlings up on day nine'));
+  check('Plain vault: a line with more than the link keeps its children folded, as in Roam', tp.includes('sow carrots') && !tp.includes('rows a foot apart'));
   await shot('page-plain-vault');
 
   // large vault: memory

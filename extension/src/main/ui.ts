@@ -2,7 +2,7 @@
 // Plain DOM with Blueprint 3 class names (Roam ships Blueprint), so no bundled UI library.
 import type { PageResult, Backlink, BacklinkLine } from '../engine.ts';
 import { blockBody, inline } from './markdown.ts';
-import { contextOf, kidsAt, lineOfSub, outlineOf, type OutlineBlock, type LineContext } from '../core/outline.ts';
+import { contextOf, kidsAt, lineOfSub, linksOnly, outlineOf, type OutlineBlock, type LineContext } from '../core/outline.ts';
 import { splitFrontmatter } from '../core/frontmatter.ts';
 import { titleOf } from '../core/vault-index.ts';
 
@@ -521,7 +521,8 @@ function marked(text: string, from: number, marks: number[]): (string | HTMLElem
  *  path shows that block in its place, with everything under it, as in Roam. */
 function referenceEl(block: LineContext, path: string, act: SectionActions, find?: string, openTop = false): HTMLElement {
   const inner = h('div', {});
-  const ctx = { ...ctxOf(path, act), find, openTop };
+  // A block that is only links shows its children from the start, as in Roam (see linksOnly).
+  const ctx = { ...ctxOf(path, act), find, openTop: openTop || linksOnly(block.text) };
   /** `shown`: the block to draw, under the parents still shown as a path. */
   const show = (up: LineContext['up'], shown: OutlineBlock, mark?: number) => {
     const zoom = h('div', { class: 'rm-zoom zoom-mentions-view' }, ...up.map((u, i) => {
